@@ -25,6 +25,7 @@ from .etcd_analyzer_elt_network_io import networkIOELT
 from .etcd_analyzer_elt_deep_drive import deepDriveELT
 from .etcd_analyzer_elt_bottleneck import bottleneckELT
 from .etcd_analyzer_performance_elt_report import etcdReportELT
+from .etcd_analyzer_elt_node_usage import nodeUsageELT
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class PerformanceDataELT(utilityELT):
         self.deep_drive_elt = deepDriveELT()
         self.bottleneck_elt = bottleneckELT()
         self.report_elt = etcdReportELT()
+        self.node_usage_elt = nodeUsageELT()
         self.logger=logging.getLogger(__name__)
 
     def extract_json_data(self, results: Union[Dict[str, Any], str]) -> Dict[str, Any]:
@@ -112,6 +114,8 @@ class PerformanceDataELT(utilityELT):
                 extracted['structured_data'] = self.bottleneck_elt.extract_bottleneck_analysis(results)
             elif data_type == 'performance_report':
                 extracted['structured_data'] = self._extract_performance_report_data(actual_data)
+            elif data_type == 'node_usage':
+                extracted['structured_data'] = self.node_usage_elt.extract_node_usage(results)
             else:
                 extracted['structured_data'] = self._extract_generic_data(results)
             
@@ -122,10 +126,17 @@ class PerformanceDataELT(utilityELT):
             return {'error': str(e), 'raw_data': results}
 
     def _identify_data_type(self, data: Dict[str, Any]) -> str:
+
         """Identify the type of data from tool results"""
         if 'analysis_results' in data and 'performance_report' in data:
             return 'performance_report'
-        
+
+        if 'node_group' in data and 'metrics' in data:
+            metrics = data.get('metrics', {})
+            node_usage_indicators = ['cpu_usage', 'memory_used', 'cgroup_cpu_usage']
+            if any(indicator in metrics for indicator in node_usage_indicators):
+                return 'node_usage'
+
         # Check for nested performance report structure
         if 'analysis_results' in data:
             analysis = data['analysis_results']
@@ -230,6 +241,9 @@ class PerformanceDataELT(utilityELT):
         # Check for category field indicating compact_defrag
         if data.get('category') == 'disk_compact_defrag':
             return 'compact_defrag'
+
+        if data.get('category') == 'node_usage':
+            return 'node_usage'
 
         if 'tool' in data and data.get('tool') == 'collect_backend_commit_metrics':
             return 'backend_commit'
@@ -454,6 +468,8 @@ class PerformanceDataELT(utilityELT):
                 return self.bottleneck_elt.summarize_bottleneck_analysis(structured_data)
             elif data_type == 'performance_report':
                 return self._summarize_performance_report(structured_data)
+            elif data_type == 'node_usage':
+                return self.node_usage_elt.summarize_node_usage(structured_data)
             else:
                 return self._summarize_generic(structured_data)
         
@@ -487,6 +503,8 @@ class PerformanceDataELT(utilityELT):
                 return self.bottleneck_elt.transform_to_dataframes(structured_data)
             elif data_type == 'performance_report':
                 return self._transform_performance_report_to_dataframes(structured_data)
+            elif data_type == 'node_usage':
+                return self.node_usage_elt.transform_to_dataframes(structured_data)                
             else:
                 # Default transformation for other data types
                 dataframes = {}
@@ -611,6 +629,8 @@ class PerformanceDataELT(utilityELT):
                 html_tables = self.cluster_info_elt.generate_html_tables(dataframes)
             elif data_type == 'etcd_cluster_status':
                 html_tables = self.cluster_status_elt.generate_html_tables(dataframes)
+            elif data_type == 'node_usage':
+                html_tables = self.node_usage_elt.generate_html_tables(dataframes)                
             elif data_type == 'disk_io':
                 html_tables = self.disk_io_elt.generate_html_tables(dataframes)
             elif data_type == 'wal_fsync':
@@ -795,7 +815,12 @@ def json_to_html_table(json_data: Union[Dict[str, Any], str], compact: bool = Tr
         if data_type == 'deep_drive':
             table_priority = [
                 'test_overview', 'analysis_summary', 'general_info', 'wal_fsync', 
-                'disk_io', 'network_io', 'backend_commit', 'compact_defrag'
+                'disk_io', 'network_io', 'backend_commit', 'compact_defrag', 'node_usage'  # Added node_usage
+            ]            
+        elif data_type == 'node_usage':
+            table_priority = [
+                'cpu_usage', 'memory_used', 'memory_cache_buffer',
+                'cgroup_cpu_usage', 'cgroup_rss_usage'
             ]
         elif data_type == 'network_io':
             table_priority = [
@@ -863,7 +888,25 @@ def json_to_html_table(json_data: Union[Dict[str, Any], str], compact: bool = Tr
                 table_title = priority_table.replace('_', ' ').title()
                 
                 # Special titles for different data types
-                if data_type == 'deep_drive':
+                # In json_to_html_table function, add to the title_mapping for general_info:
+                if data_type == 'general_info':
+                    title_mapping = {
+                        'pod_performance': 'Pod Performance Details',
+                        'node_performance': 'Node Performance Details',
+                        'metrics_overview': 'Metrics Overview',
+                        'resource_objects': 'API Server Storage Objects (Top 20)'
+                    }
+                    table_title = title_mapping.get(priority_table, table_title)
+                elif data_type == 'node_usage':
+                    title_mapping = {
+                        'cpu_usage': 'Node CPU Usage by Mode',
+                        'memory_used': 'Node Memory Used',
+                        'memory_cache_buffer': 'Node Memory Cache/Buffer',
+                        'cgroup_cpu_usage': 'Cgroup CPU Usage',
+                        'cgroup_rss_usage': 'Cgroup RSS Memory Usage'
+                    }
+                    table_title = title_mapping.get(priority_table, table_title)                                  
+                elif data_type == 'deep_drive':
                     title_mapping = {
                         'test_overview': 'Test Overview',
                         'analysis_summary': 'Analysis Summary',
@@ -872,9 +915,11 @@ def json_to_html_table(json_data: Union[Dict[str, Any], str], compact: bool = Tr
                         'disk_io': 'Disk I/O Performance',
                         'network_io': 'Network I/O Performance',
                         'backend_commit': 'Backend Commit Performance',
-                        'compact_defrag': 'Compact & Defrag Performance'
+                        'compact_defrag': 'Compact & Defrag Performance',
+                        'node_usage': 'Node Resource Usage'  # Added node_usage
                     }
                     table_title = title_mapping.get(priority_table, table_title)
+
                 elif data_type == 'network_io':
                     title_mapping = {
                         'metrics_overview': 'Network Metrics Overview',
@@ -1552,6 +1597,38 @@ def process_bottleneck_analysis_json(bottleneck_data: Union[Dict[str, Any], str]
             'processing_successful': False
         }
 
+def process_node_usage_json(node_usage_data: Union[Dict[str, Any], str]) -> Dict[str, Any]:
+    """Process node usage JSON data specifically"""
+    try:
+        if isinstance(node_usage_data, str):
+            node_usage_data = json.loads(node_usage_data)
+        
+        node_usage_elt = nodeUsageELT()
+        structured_data = node_usage_elt.extract_node_usage(node_usage_data)
+        
+        if 'error' in structured_data:
+            return {'error': structured_data['error'], 'processing_successful': False}
+        
+        dataframes = node_usage_elt.transform_to_dataframes(structured_data)
+        html_tables = node_usage_elt.generate_html_tables(dataframes)
+        summary = node_usage_elt.summarize_node_usage(structured_data)
+        
+        return {
+            'data_type': 'node_usage',
+            'summary': summary,
+            'html_tables': html_tables,
+            'dataframes': dataframes,
+            'structured_data': structured_data,
+            'processing_successful': True
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to process node usage data: {e}")
+        return {
+            'error': str(e),
+            'processing_successful': False
+        }
+        
 #  Updated __all__ export list
 __all__ = [
     'PerformanceDataELT',
@@ -1576,5 +1653,7 @@ __all__ = [
     'compactDefragELT',
     'networkIOELT',
     'deepDriveELT',
-    'bottleneckELT'
+    'bottleneckELT',
+    'nodeUsageELT',
+    'process_node_usage_json'    
 ]

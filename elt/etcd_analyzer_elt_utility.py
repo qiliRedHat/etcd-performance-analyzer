@@ -1516,3 +1516,56 @@ class utilityELT:
                 'score': 0,
                 'description': 'Unable to assess health status'
             }
+
+    def highlight_node_usage_values(self, value: float, metric_type: str, unit: str, is_top: bool = False, extra_info: str = "") -> str:
+        """Highlight node usage values with thresholds"""
+        try:
+            if is_top:
+                formatted_value = self._format_node_usage_value(value, unit) + extra_info
+                return f'<span class="text-primary font-weight-bold bg-light px-1">🏆 {formatted_value}</span>'
+            
+            thresholds = self._get_node_usage_thresholds(metric_type)
+            
+            if thresholds and isinstance(value, (int, float)):
+                critical = thresholds.get('critical', float('inf'))
+                warning = thresholds.get('warning', float('inf'))
+                
+                formatted_value = self._format_node_usage_value(value, unit) + extra_info
+                
+                if value >= critical:
+                    return f'<span class="text-danger font-weight-bold">⚠️ {formatted_value}</span>'
+                elif value >= warning:
+                    return f'<span class="text-warning font-weight-bold">{formatted_value}</span>'
+                else:
+                    return f'<span class="text-success">{formatted_value}</span>'
+            else:
+                return self._format_node_usage_value(value, unit) + extra_info
+                
+        except (ValueError, TypeError):
+            return str(value)
+
+    def _get_node_usage_thresholds(self, metric_type: str) -> Dict[str, float]:
+        """Get thresholds for node usage metrics"""
+        thresholds_map = {
+            'cpu': {'warning': 70.0, 'critical': 85.0},
+            'memory': {'warning': 70.0, 'critical': 85.0},
+        }
+        return thresholds_map.get(metric_type.lower(), {})
+
+    def _format_node_usage_value(self, value: float, unit: str) -> str:
+        """Format node usage value with appropriate unit"""
+        try:
+            unit_lower = unit.lower()
+            
+            if unit_lower == 'percent':
+                return f"{value:.2f}%"
+            elif unit_lower == 'gb':
+                return f"{value:.2f} GB"
+            elif unit_lower == 'mb':
+                if value > 1024:
+                    return f"{value/1024:.2f} GB"
+                return f"{value:.1f} MB"
+            else:
+                return f"{value:.2f}"
+        except (ValueError, TypeError):
+            return str(value) 

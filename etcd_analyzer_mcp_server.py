@@ -29,6 +29,12 @@ os.environ['TZ'] = 'UTC'
 # Use regex to include submodules like websockets.legacy and uvicorn.protocols.websockets.websockets_impl
 warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^websockets(\..*)?$")
 warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^uvicorn\.protocols\.websockets(\..*)?$")
+# Suppress urllib3 deprecation warning from third-party clients (e.g., kubernetes)
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    message=r"HTTPResponse\.getheaders\(\) is deprecated"
+)
 
 try:
     from fastmcp import FastMCP
@@ -50,6 +56,7 @@ try:
     from tools.etcd_network_io import NetworkIOCollector
     from tools.etcd_disk_io import DiskIOCollector
     from tools.ocp_cluster_info import ClusterInfoCollector
+    from tools.etcd_node_usage import nodeUsageCollector
     from config.etcd_config import get_config
     # Add this import at the top of the file with other imports
     from analysis.etcd_analyzer_performance_deepdrive import etcdDeepDriveAnalyzer
@@ -87,6 +94,13 @@ class ETCDMetricsResponse(MCPBaseModel):
     category: Optional[str] = None
     duration: Optional[str] = None
 
+class ETCDNodeUsageResponse(MCPBaseModel):
+    status: str = Field(description="Status of node usage metrics collection")
+    data: Optional[Dict[str, Any]] = Field(None, description="Comprehensive node usage metrics including CPU usage by mode, memory used, memory cache/buffer, cgroup CPU usage, and cgroup RSS usage for master nodes")
+    error: Optional[str] = Field(None, description="Error message if collection failed")
+    timestamp: str = Field(description="ISO timestamp of metrics collection")
+    category: str = Field(default="node_usage", description="Metric category identifier")
+    duration: str = Field(description="Time range used for metrics collection")
 
 class ETCDGeneralInfoResponse(MCPBaseModel):
     status: str = Field(description="Status of the general info collection operation")
@@ -237,14 +251,15 @@ backend_commit_collector = None
 network_collector = None
 disk_io_collector = None
 cluster_info_collector = None
-
+node_usage_collector = None
 
 async def initialize_collectors():
     """Initialize all collectors with authentication"""
     global ocp_auth, cluster_collector, general_collector, compact_defrag_collector
     global wal_fsync_collector, backend_commit_collector, network_collector, disk_io_collector
     global cluster_info_collector
-    
+    global cluster_info_collector, node_usage_collector
+
     try:
         # Initialize OpenShift authentication
         ocp_auth = OCPAuth()
@@ -264,6 +279,13 @@ async def initialize_collectors():
         backend_commit_collector = DiskBackendCommitCollector(ocp_auth)
         network_collector = NetworkIOCollector(ocp_auth)
         disk_io_collector = DiskIOCollector(ocp_auth)
+        # Build Prometheus config for node usage collector
+        prometheus_config = {
+            'base_url': ocp_auth.prometheus_url,
+            'token': ocp_auth.token,
+            'verify_ssl': False
+        }
+        node_usage_collector = nodeUsageCollector(ocp_auth, prometheus_config)
         
         # Initialize OCP cluster info collector (uses OCPAuth client)
         cluster_info_collector = ClusterInfoCollector()
@@ -318,7 +340,8 @@ async def get_server_health() -> ServerHealthResponse:
             "backend_commit_collector": backend_commit_collector is not None,
             "network_collector": network_collector is not None,
             "disk_io_collector": disk_io_collector is not None,
-            "cluster_info_collector": cluster_info_collector is not None
+            "cluster_info_collector": cluster_info_collector is not None,
+            "node_usage_collector": node_usage_collector is not None 
         }
     )
 
@@ -368,6 +391,82 @@ async def get_ocp_cluster_info() -> OCPClusterInfoResponse:
             status="error",
             error=str(e),
             timestamp=datetime.now(pytz.UTC).isoformat()
+        )
+
+@mcp.tool()
+async def get_etcd_node_usage(duration: str = "1h") -> ETCDNodeUsageResponse:
+    """
+    Get comprehensive node usage metrics for master nodes hosting etcd.
+    
+    Monitors resource utilization metrics at the node and cgroup level for master nodes:
+    - Node CPU usage by mode (user, system, idle, iowait, etc.)
+    - Node memory used (active memory consumption)
+    - Node memory cache and buffer (filesystem cache and buffers)
+    - Cgroup CPU usage (CPU consumption per control group)
+    - Cgroup RSS usage (Resident Set Size memory per control group)
+    
+    These metrics provide insights into:
+    - Overall master node resource utilization and capacity
+    - CPU contention and workload distribution patterns
+    - Memory pressure and caching efficiency
+    - Container-level resource consumption via cgroups
+    - Potential resource bottlenecks affecting etcd performance
+    
+    Node resource constraints can directly impact etcd cluster stability and performance.
+    High CPU usage (>80%) or memory pressure can cause etcd timeouts and degraded performance.
+    
+    Args:
+        duration: Time range for metrics collection. Examples: '15m', '30m', '1h', '2h', '6h', '12h', '1d'
+    
+    Returns:
+        ETCDNodeUsageResponse: Node usage metrics including CPU usage by mode, memory consumption, cache/buffer statistics, and cgroup-level resource utilization for all master nodes
+    """
+    try:
+        global ocp_auth, node_usage_collector
+        if not node_usage_collector:
+            # Lazy initialize if startup initialization didn't complete
+            if ocp_auth is None:
+                ocp_auth = OCPAuth()
+                auth_success = await ocp_auth.initialize()
+                if not auth_success:
+                    return ETCDNodeUsageResponse(
+                        status="error",
+                        error="Failed to initialize OpenShift auth for node usage",
+                        timestamp=datetime.now(pytz.UTC).isoformat(),
+                        duration=duration
+                    )
+            try:
+                prometheus_config = {
+                    'base_url': ocp_auth.prometheus_url,
+                    'token': ocp_auth.token,
+                    'verify_ssl': False
+                }
+                node_usage_collector = nodeUsageCollector(ocp_auth, prometheus_config)
+            except Exception as e:
+                return ETCDNodeUsageResponse(
+                    status="error",
+                    error=f"Failed to initialize nodeUsageCollector: {e}",
+                    timestamp=datetime.now(pytz.UTC).isoformat(),
+                    duration=duration
+                )
+        
+        result = await node_usage_collector.collect_all_metrics(duration)
+        
+        return ETCDNodeUsageResponse(
+            status=result.get('status', 'unknown'),
+            data=result,
+            error=result.get('error'),
+            timestamp=result.get('timestamp', datetime.now(pytz.UTC).isoformat()),
+            duration=duration
+        )
+        
+    except Exception as e:
+        logger.error(f"Error collecting node usage metrics: {e}")
+        return ETCDNodeUsageResponse(
+            status="error",
+            error=str(e),
+            timestamp=datetime.now(pytz.UTC).isoformat(),
+            duration=duration
         )
 
 @mcp.tool()
@@ -1014,9 +1113,31 @@ async def generate_etcd_performance_report(duration: str = "1h", input: Performa
         
         # Initialize the performance report analyzer
         report_analyzer = etcdReportAnalyzer()
-        
-        # Analyze the collected metrics
-        analysis_results = report_analyzer.analyze_performance_metrics(metrics_result, test_id)
+
+        # Collect node usage to enrich the analysis (ensure expected schema)
+        node_usage_wrapped: Dict[str, Any] | None = None
+        try:
+            global node_usage_collector
+            if not node_usage_collector:
+                # Lazy init like get_etcd_node_usage
+                prometheus_config_local = {
+                    'base_url': ocp_auth.prometheus_url,
+                    'token': ocp_auth.token,
+                    'verify_ssl': False,
+                }
+                node_usage_collector = nodeUsageCollector(ocp_auth, prometheus_config_local)
+            node_usage_result = await node_usage_collector.collect_all_metrics(eff_duration)
+            node_usage_wrapped = {
+                'status': node_usage_result.get('status', 'unknown'),
+                'data': node_usage_result,
+                'timestamp': node_usage_result.get('timestamp')
+            }
+        except Exception as nu_err:
+            logger.warning(f"Node usage collection failed for performance report: {nu_err}")
+            node_usage_wrapped = None
+
+        # Analyze the collected metrics (including node usage when available)
+        analysis_results = report_analyzer.analyze_performance_metrics(metrics_result, test_id, node_usage_wrapped)
         
         # Generate the comprehensive performance report
         performance_report = report_analyzer.generate_performance_report(
@@ -1115,16 +1236,26 @@ def main():
             sys.exit(1)
     
     try:
-        # Check if we're already in an event loop
+        # Prefer using an existing running loop when present; otherwise create and manage one explicitly.
+        loop = None
         try:
             loop = asyncio.get_running_loop()
-            logger.warning("Already running in an event loop. Creating new task.")
-            # If we're already in a loop, create a task instead
-            task = loop.create_task(run_server())
-            return task
         except RuntimeError:
-            # No event loop running, safe to use asyncio.run
-            asyncio.run(run_server())
+            # No running loop in this thread
+            loop = None
+
+        if loop and loop.is_running():
+            logger.warning("Already running in an event loop. Creating new task.")
+            return loop.create_task(run_server())
+        else:
+            # Explicitly create and manage an event loop to avoid RuntimeError noise on some platforms
+            new_loop = asyncio.new_event_loop()
+            try:
+                asyncio.set_event_loop(new_loop)
+                new_loop.run_until_complete(run_server())
+            finally:
+                new_loop.close()
+                asyncio.set_event_loop(None)
             
     except KeyboardInterrupt:
         logger.info("Server shutdown requested")

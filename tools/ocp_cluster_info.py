@@ -7,15 +7,20 @@ Combines cluster information and status collection into a unified module
 import json
 import logging
 import asyncio
+import ssl
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+import urllib3
 
 from ocauth.ocp_auth import OCPAuth
 from config.etcd_config import get_config
+
+# Suppress urllib3 SSL warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +80,32 @@ class ClusterInfoCollector:
         self.config = get_config()
         
     async def initialize(self):
-        """Initialize the collector with authentication"""
+        """Initialize the collector with authentication and proper SSL handling"""
         self.auth_manager = OCPAuth()
-        await self.auth_manager.initialize()
-        # OCPAuth exposes Kubernetes ApiClient as k8s_client
+        success = await self.auth_manager.initialize()
+        
+        if not success:
+            logger.error("Failed to initialize OCPAuth")
+            raise RuntimeError("OCPAuth initialization failed")
+        
+        # IMPORTANT: Use the k8s_client from auth_manager directly
+        # It's already configured with proper SSL settings
         self.k8s_client = getattr(self.auth_manager, 'k8s_client', None)
+        
+        if not self.k8s_client:
+            logger.error("No Kubernetes client available from auth_manager")
+            raise RuntimeError("Kubernetes client not initialized")
+        
+        # Log the configuration being used
+        k8s_conf = self.k8s_client.configuration
+        logger.info(f"Kubernetes API: {k8s_conf.host}")
+        logger.info(f"SSL verification: {k8s_conf.verify_ssl}, Hostname check: {k8s_conf.assert_hostname}")
+        
+        if k8s_conf.ssl_ca_cert:
+            logger.debug(f"Using CA cert: {k8s_conf.ssl_ca_cert}")
+        
+        # The k8s_client from OCPAuth is already properly configured
+        # All API clients created from it will inherit the SSL settings
         
     async def collect_cluster_info(self) -> ClusterInfo:
         """Collect all cluster information"""
@@ -133,7 +159,7 @@ class ClusterInfoCollector:
                 collection_timestamp=datetime.now(timezone.utc).isoformat()
             )
             
-            logger.info("Cluster information collection completed successfully")
+            logger.info("✓ Cluster information collection completed successfully")
             return cluster_info
             
         except Exception as e:
@@ -150,7 +176,15 @@ class ClusterInfoCollector:
                 plural="infrastructures",
                 name="cluster"
             )
-            return infrastructure.get("status", {}).get("infrastructureName", "unknown")
+            cluster_name = infrastructure.get("status", {}).get("infrastructureName", "unknown")
+            logger.debug(f"Cluster name: {cluster_name}")
+            return cluster_name
+        except ApiException as e:
+            if e.status == 404:
+                logger.warning("Infrastructure object not found")
+            else:
+                logger.warning(f"Could not get cluster name (HTTP {e.status}): {e.reason}")
+            return "unknown"
         except Exception as e:
             logger.warning(f"Could not get cluster name: {e}")
             return "unknown"
@@ -168,8 +202,14 @@ class ClusterInfoCollector:
             
             history = cluster_version.get("status", {}).get("history", [])
             if history:
-                return history[0].get("version", "unknown")
-                
+                version = history[0].get("version", "unknown")
+                logger.debug(f"Cluster version: {version}")
+                return version
+        except ApiException as e:
+            if e.status == 404:
+                logger.warning("ClusterVersion object not found")
+            else:
+                logger.warning(f"Could not get cluster version (HTTP {e.status}): {e.reason}")
         except Exception as e:
             logger.warning(f"Could not get cluster version: {e}")
             
@@ -185,7 +225,15 @@ class ClusterInfoCollector:
                 plural="infrastructures",
                 name="cluster"
             )
-            return infrastructure.get("status", {}).get("platform", "unknown")
+            platform = infrastructure.get("status", {}).get("platform", "unknown")
+            logger.debug(f"Infrastructure platform: {platform}")
+            return platform
+        except ApiException as e:
+            if e.status == 404:
+                logger.warning("Infrastructure object not found")
+            else:
+                logger.warning(f"Could not get infrastructure platform (HTTP {e.status}): {e.reason}")
+            return "unknown"
         except Exception as e:
             logger.warning(f"Could not get infrastructure platform: {e}")
             return "unknown"
@@ -200,6 +248,8 @@ class ClusterInfoCollector:
             infra_nodes = []
             worker_nodes = []
             all_nodes = []
+            
+            logger.debug(f"Processing {len(nodes.items)} nodes")
             
             for node in nodes.items:
                 node_info = self._parse_node_info(node)
@@ -217,7 +267,9 @@ class ClusterInfoCollector:
                 else:
                     node_info.node_type = "worker"
                     worker_nodes.append(node_info)
-                    
+            
+            logger.info(f"✓ Collected node info: {len(master_nodes)} master, {len(infra_nodes)} infra, {len(worker_nodes)} worker")
+            
             return {
                 "all_nodes": all_nodes,
                 "master_nodes": master_nodes,
@@ -225,6 +277,9 @@ class ClusterInfoCollector:
                 "worker_nodes": worker_nodes
             }
             
+        except ApiException as e:
+            logger.error(f"Failed to collect nodes info (HTTP {e.status}): {e.reason}")
+            raise
         except Exception as e:
             logger.error(f"Failed to collect nodes info: {e}")
             raise
@@ -278,6 +333,8 @@ class ClusterInfoCollector:
             networking_v1 = client.NetworkingV1Api(self.k8s_client)
             custom_api = client.CustomObjectsApi(self.k8s_client)
             
+            logger.debug("Collecting resource counts...")
+            
             # Basic resources
             namespaces = v1.list_namespace()
             pods = v1.list_pod_for_all_namespaces()
@@ -304,6 +361,8 @@ class ClusterInfoCollector:
                 "userdefinednetworks": 0
             }
             
+            logger.debug(f"Basic resources: {counts['namespaces']} namespaces, {counts['pods']} pods, {counts['services']} services")
+            
             # Admin network policies
             try:
                 admin_policies = custom_api.list_cluster_custom_object(
@@ -312,8 +371,11 @@ class ClusterInfoCollector:
                     plural="adminnetworkpolicies"
                 )
                 counts["adminnetworkpolicies"] = len(admin_policies.get("items", []))
+            except ApiException as e:
+                if e.status != 404:  # 404 means CRD not installed
+                    logger.debug(f"Could not count admin network policies (HTTP {e.status})")
             except Exception as e:
-                logger.warning(f"Could not count admin network policies: {e}")
+                logger.debug(f"Could not count admin network policies: {e}")
             
             # Baseline admin network policies
             try:
@@ -323,8 +385,11 @@ class ClusterInfoCollector:
                     plural="baselineadminnetworkpolicies"
                 )
                 counts["baselineadminnetworkpolicies"] = len(baseline_admin_policies.get("items", []))
+            except ApiException as e:
+                if e.status != 404:
+                    logger.debug(f"Could not count baseline admin network policies (HTTP {e.status})")
             except Exception as e:
-                logger.warning(f"Could not count baseline admin network policies: {e}")
+                logger.debug(f"Could not count baseline admin network policies: {e}")
             
             # Egress firewalls
             try:
@@ -334,8 +399,11 @@ class ClusterInfoCollector:
                     plural="egressfirewalls"
                 )
                 counts["egressfirewalls"] = len(egress_firewalls.get("items", []))
+            except ApiException as e:
+                if e.status != 404:
+                    logger.debug(f"Could not count egress firewalls (HTTP {e.status})")
             except Exception as e:
-                logger.warning(f"Could not count egress firewalls: {e}")
+                logger.debug(f"Could not count egress firewalls: {e}")
             
             # Egress IPs
             try:
@@ -345,8 +413,11 @@ class ClusterInfoCollector:
                     plural="egressips"
                 )
                 counts["egressips"] = len(egress_ips.get("items", []))
+            except ApiException as e:
+                if e.status != 404:
+                    logger.debug(f"Could not count egress IPs (HTTP {e.status})")
             except Exception as e:
-                logger.warning(f"Could not count egress IPs: {e}")
+                logger.debug(f"Could not count egress IPs: {e}")
             
             # Cluster User Defined Networks (ClusterUDN)
             try:
@@ -356,8 +427,11 @@ class ClusterInfoCollector:
                     plural="clusteruserdefinednetworks"
                 )
                 counts["clusteruserdefinednetworks"] = len(cluster_udn_resources.get("items", []))
+            except ApiException as e:
+                if e.status != 404:
+                    logger.debug(f"Could not count cluster user defined networks (HTTP {e.status})")
             except Exception as e:
-                logger.warning(f"Could not count cluster user defined networks: {e}")
+                logger.debug(f"Could not count cluster user defined networks: {e}")
             
             # User Defined Networks (UDN)
             try:
@@ -367,11 +441,23 @@ class ClusterInfoCollector:
                     plural="userdefinednetworks"
                 )
                 counts["userdefinednetworks"] = len(udn_resources.get("items", []))
+            except ApiException as e:
+                if e.status != 404:
+                    logger.debug(f"Could not count user defined networks (HTTP {e.status})")
             except Exception as e:
-                logger.warning(f"Could not count user defined networks: {e}")
+                logger.debug(f"Could not count user defined networks: {e}")
             
+            logger.info(f"✓ Resource counts collected successfully")
             return counts
             
+        except ApiException as e:
+            logger.error(f"Failed to collect resource counts (HTTP {e.status}): {e.reason}")
+            return {
+                "namespaces": 0, "pods": 0, "services": 0, "secrets": 0,
+                "configmaps": 0, "networkpolicies": 0, "adminnetworkpolicies": 0,
+                "baselineadminnetworkpolicies": 0, "egressfirewalls": 0, "egressips": 0, 
+                "clusteruserdefinednetworks": 0, "userdefinednetworks": 0
+            }
         except Exception as e:
             logger.error(f"Failed to collect resource counts: {e}")
             return {
@@ -405,9 +491,20 @@ class ClusterInfoCollector:
                         
                 if not is_available:
                     unavailable_operators.append(name)
-                    
+            
+            if unavailable_operators:
+                logger.warning(f"Found {len(unavailable_operators)} unavailable cluster operators: {unavailable_operators}")
+            else:
+                logger.debug("All cluster operators are available")
+            
             return unavailable_operators
             
+        except ApiException as e:
+            if e.status == 404:
+                logger.debug("ClusterOperators not found (not an OpenShift cluster?)")
+            else:
+                logger.warning(f"Could not get cluster operators status (HTTP {e.status}): {e.reason}")
+            return []
         except Exception as e:
             logger.warning(f"Could not get cluster operators status: {e}")
             return []
@@ -453,8 +550,17 @@ class ClusterInfoCollector:
                         
                     mcp_status[pool_name] = status
             
+            if mcp_status:
+                logger.debug(f"MachineConfigPool status: {mcp_status}")
+            
             return mcp_status
             
+        except ApiException as e:
+            if e.status == 404:
+                logger.debug("MachineConfigPools not found (not an OpenShift cluster?)")
+            else:
+                logger.warning(f"Could not get machine config pool status (HTTP {e.status}): {e.reason}")
+            return {}
         except Exception as e:
             logger.warning(f"Could not get machine config pool status: {e}")
             return {}
@@ -490,11 +596,19 @@ async def get_cluster_info_json(kubeconfig_path: Optional[str] = None) -> str:
 
 if __name__ == "__main__":
     async def main():
+        # Set up logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        
         try:
             collector = ClusterInfoCollector()
             cluster_info = await collector.collect_cluster_info()
             print(collector.to_json(cluster_info))
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
+            import traceback
+            traceback.print_exc()
     
     asyncio.run(main())

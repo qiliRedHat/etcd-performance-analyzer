@@ -72,6 +72,8 @@ class etcdAnalyzerUtility:
                 formatted_value["formatted"] = f"{value:.2f}%"
             elif unit.lower() in ['count', 'total']:
                 formatted_value["formatted"] = f"{int(value):,}"
+            elif unit.lower() in ['gb', 'gigabytes']:
+                formatted_value["formatted"] = f"{value:.2f}GB"
             else:
                 # Default formatting for unknown units
                 if value >= 1000000:
@@ -153,6 +155,16 @@ class etcdAnalyzerUtility:
                         elif 'device_count' in node_stats:
                             node_metric["device_count"] = node_stats['device_count']
                         
+                        # Add capacity information if available
+                        if 'total_capacity' in node_stats:
+                            node_metric["total_capacity"] = node_stats['total_capacity']
+                        
+                        # Add mode/cgroup breakdowns if available
+                        if 'modes' in node_stats:
+                            node_metric["modes"] = node_stats['modes']
+                        if 'cgroups' in node_stats:
+                            node_metric["cgroups"] = node_stats['cgroups']
+                        
                         node_metrics.append(node_metric)
         
         except Exception as e:
@@ -183,6 +195,152 @@ class etcdAnalyzerUtility:
         
         return cluster_metric
     
+    def analyze_node_resource_utilization(self, node_usage_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze node resource utilization patterns"""
+        analysis = {
+            "cpu_utilization": {},
+            "memory_utilization": {},
+            "resource_bottlenecks": [],
+            "recommendations": []
+        }
+        
+        try:
+            if node_usage_data.get('status') != 'success':
+                return analysis
+            
+            metrics = node_usage_data.get('data', {}).get('metrics', {})
+            node_capacities = node_usage_data.get('data', {}).get('node_capacities', {})
+            
+            # Analyze CPU usage
+            cpu_usage = metrics.get('cpu_usage', {})
+            if cpu_usage.get('status') == 'success':
+                nodes = cpu_usage.get('nodes', {})
+                
+                for node_name, node_data in nodes.items():
+                    total = node_data.get('total', {})
+                    avg_cpu = total.get('avg', 0)
+                    max_cpu = total.get('max', 0)
+                    
+                    # CPU is reported as total percentage across all cores
+                    # For 40 cores, 100% usage per core = 4000% total
+                    # Estimate core count from max idle
+                    modes = node_data.get('modes', {})
+                    idle_max = modes.get('idle', {}).get('max', 0)
+                    estimated_cores = int(idle_max / 100) if idle_max > 0 else 40
+                    
+                    # Calculate actual utilization percentage
+                    avg_utilization = (avg_cpu / estimated_cores) if estimated_cores > 0 else 0
+                    max_utilization = (max_cpu / estimated_cores) if estimated_cores > 0 else 0
+                    
+                    analysis['cpu_utilization'][node_name] = {
+                        'estimated_cores': estimated_cores,
+                        'avg_utilization_percent': round(avg_utilization, 2),
+                        'max_utilization_percent': round(max_utilization, 2),
+                        'raw_avg': avg_cpu,
+                        'raw_max': max_cpu,
+                        'status': self._assess_cpu_status(avg_utilization)
+                    }
+                    
+                    # Check for CPU bottlenecks
+                    if avg_utilization > 70:
+                        analysis['resource_bottlenecks'].append({
+                            'type': 'cpu',
+                            'node': node_name,
+                            'severity': 'high' if avg_utilization > 85 else 'medium',
+                            'description': f'Node {node_name} CPU utilization at {avg_utilization:.1f}%'
+                        })
+            
+            # Analyze memory usage
+            memory_used = metrics.get('memory_used', {})
+            if memory_used.get('status') == 'success':
+                nodes = memory_used.get('nodes', {})
+                
+                for node_name, node_data in nodes.items():
+                    avg_memory = node_data.get('avg', 0)
+                    max_memory = node_data.get('max', 0)
+                    total_capacity = node_data.get('total_capacity', 0)
+                    
+                    # Calculate utilization percentage
+                    avg_percent = (avg_memory / total_capacity * 100) if total_capacity > 0 else 0
+                    max_percent = (max_memory / total_capacity * 100) if total_capacity > 0 else 0
+                    
+                    analysis['memory_utilization'][node_name] = {
+                        'total_capacity_gb': total_capacity,
+                        'avg_used_gb': avg_memory,
+                        'max_used_gb': max_memory,
+                        'avg_utilization_percent': round(avg_percent, 2),
+                        'max_utilization_percent': round(max_percent, 2),
+                        'status': self._assess_memory_status(avg_percent)
+                    }
+                    
+                    # Check for memory pressure
+                    if avg_percent > 70:
+                        analysis['resource_bottlenecks'].append({
+                            'type': 'memory',
+                            'node': node_name,
+                            'severity': 'high' if avg_percent > 85 else 'medium',
+                            'description': f'Node {node_name} memory utilization at {avg_percent:.1f}%'
+                        })
+            
+            # Generate recommendations
+            analysis['recommendations'] = self._generate_node_recommendations(
+                analysis['resource_bottlenecks']
+            )
+        
+        except Exception as e:
+            self.logger.error(f"Error analyzing node resource utilization: {e}")
+            analysis['error'] = str(e)
+        
+        return analysis
+    
+    def _assess_cpu_status(self, utilization: float) -> str:
+        """Assess CPU utilization status"""
+        if utilization > 85:
+            return "critical"
+        elif utilization > 70:
+            return "warning"
+        elif utilization > 50:
+            return "moderate"
+        else:
+            return "good"
+    
+    def _assess_memory_status(self, utilization: float) -> str:
+        """Assess memory utilization status"""
+        if utilization > 85:
+            return "critical"
+        elif utilization > 70:
+            return "warning"
+        elif utilization > 50:
+            return "moderate"
+        else:
+            return "good"
+    
+    def _generate_node_recommendations(self, bottlenecks: List[Dict[str, Any]]) -> List[str]:
+        """Generate recommendations for node resource issues"""
+        recommendations = []
+        
+        cpu_bottlenecks = [b for b in bottlenecks if b['type'] == 'cpu']
+        memory_bottlenecks = [b for b in bottlenecks if b['type'] == 'memory']
+        
+        if cpu_bottlenecks:
+            recommendations.extend([
+                "Consider increasing CPU allocation for master nodes",
+                "Review workload distribution across master nodes",
+                "Investigate CPU-intensive processes on affected nodes"
+            ])
+        
+        if memory_bottlenecks:
+            recommendations.extend([
+                "Consider increasing memory allocation for master nodes",
+                "Review memory-intensive workloads and optimize where possible",
+                "Monitor for memory leaks in system services"
+            ])
+        
+        if not bottlenecks:
+            recommendations.append("Node resource utilization is within acceptable ranges")
+        
+        return recommendations
+    
     def analyze_latency_patterns(self, metrics_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze latency patterns and identify potential bottlenecks"""
         analysis = {
@@ -204,10 +362,10 @@ class etcdAnalyzerUtility:
                     analysis['latency_analysis']['wal_fsync_p99'] = {
                         "avg_ms": avg_latency * 1000 if avg_latency < 1 else avg_latency,
                         "max_ms": max_latency * 1000 if max_latency < 1 else max_latency,
-                        "status": self._assess_latency_status(avg_latency, 0.01, 0.05, 0.1)  # 10ms, 50ms, 100ms thresholds
+                        "status": self._assess_latency_status(avg_latency, 0.01, 0.05, 0.1)
                     }
                     
-                    if avg_latency > 0.1:  # > 100ms
+                    if avg_latency > 0.1:
                         analysis['potential_bottlenecks'].append({
                             "type": "disk_io",
                             "description": "High WAL fsync latency indicates disk I/O bottleneck",
@@ -215,56 +373,13 @@ class etcdAnalyzerUtility:
                             "metric": "wal_fsync_p99",
                             "value": f"{avg_latency:.3f}s"
                         })
-                    elif avg_latency > 0.05:  # > 50ms
+                    elif avg_latency > 0.05:
                         analysis['potential_bottlenecks'].append({
                             "type": "disk_io",
                             "description": "Elevated WAL fsync latency may indicate disk performance issues",
                             "severity": "medium",
                             "metric": "wal_fsync_p99",
                             "value": f"{avg_latency:.3f}s"
-                        })
-            
-            # Analyze backend commit latency
-            if 'backend_commit_data' in metrics_data:
-                commit_metrics = metrics_data['backend_commit_data']
-                p99_commit = next((m for m in commit_metrics if 'p99' in m.get('metric_name', '')), None)
-                
-                if p99_commit and p99_commit.get('avg'):
-                    commit_latency = p99_commit['avg']
-                    analysis['latency_analysis']['backend_commit_p99'] = {
-                        "avg_ms": commit_latency * 1000 if commit_latency < 1 else commit_latency,
-                        "status": self._assess_latency_status(commit_latency, 0.005, 0.02, 0.05)  # 5ms, 20ms, 50ms
-                    }
-                    
-                    if commit_latency > 0.05:  # > 50ms
-                        analysis['potential_bottlenecks'].append({
-                            "type": "backend_commit",
-                            "description": "High backend commit latency indicates database performance issues",
-                            "severity": "high",
-                            "metric": "backend_commit_p99",
-                            "value": f"{commit_latency:.3f}s"
-                        })
-            
-            # Analyze network latency
-            if 'network_data' in metrics_data:
-                network_metrics = metrics_data['network_data']
-                peer_latency = next((m for m in network_metrics.get('pod_metrics', []) 
-                                   if 'peer2peer_latency' in m.get('metric_name', '')), None)
-                
-                if peer_latency and peer_latency.get('avg'):
-                    p2p_latency = peer_latency['avg']
-                    analysis['latency_analysis']['peer_to_peer'] = {
-                        "avg_ms": p2p_latency * 1000 if p2p_latency < 1 else p2p_latency,
-                        "status": self._assess_latency_status(p2p_latency, 0.01, 0.05, 0.1)
-                    }
-                    
-                    if p2p_latency > 0.1:  # > 100ms
-                        analysis['potential_bottlenecks'].append({
-                            "type": "network",
-                            "description": "High peer-to-peer latency indicates network performance issues",
-                            "severity": "high",
-                            "metric": "peer2peer_latency_p99",
-                            "value": f"{p2p_latency:.3f}s"
                         })
             
             # Generate recommendations
@@ -332,7 +447,8 @@ class etcdAnalyzerUtility:
                 "disk_io": {"count": 0, "status": "unknown"},
                 "network_io": {"count": 0, "status": "unknown"},
                 "backend_commit": {"count": 0, "status": "unknown"},
-                "compact_defrag": {"count": 0, "status": "unknown"}
+                "compact_defrag": {"count": 0, "status": "unknown"},
+                "node_usage": {"count": 0, "status": "unknown"}
             },
             "performance_indicators": {},
             "overall_health": "unknown"
@@ -347,8 +463,7 @@ class etcdAnalyzerUtility:
                 raw_key = category.replace('_data', '')
                 key = category_alias.get(raw_key, raw_key)
                 if key not in summary['categories']:
-                    # Unknown category; skip counting but continue
-                    self.logger.debug(f"Unknown category '{key}' in summary counting; available: {list(summary['categories'].keys())}")
+                    self.logger.debug(f"Unknown category '{key}' in summary counting")
                     continue
                 if isinstance(data, list):
                     summary['categories'][key]['count'] = len(data)
@@ -356,6 +471,11 @@ class etcdAnalyzerUtility:
                 elif isinstance(data, dict) and 'pod_metrics' in data:
                     count = len(data['pod_metrics'])
                     summary['categories'][key]['count'] = count
+                    summary['total_metrics_collected'] += count
+                elif isinstance(data, dict) and 'metrics' in data:
+                    # Node usage data structure
+                    count = len(data.get('metrics', {}))
+                    summary['categories']['node_usage']['count'] = count
                     summary['total_metrics_collected'] += count
             
             # Assess overall health based on latency analysis

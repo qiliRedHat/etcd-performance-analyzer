@@ -112,6 +112,84 @@ class mcpToolsUtility:
             self.logger.error(f"Error getting master nodes: {e}")
             return []
     
+    async def get_nodes_by_group(self) -> Dict[str, List[str]]:
+        """Get nodes grouped by role: controlplane/worker/infra/workload"""
+        try:
+            if not self.ocp_auth.k8s_client:
+                raise RuntimeError("Kubernetes client not initialized")
+                
+            v1 = client.CoreV1Api(self.ocp_auth.k8s_client)
+            nodes = v1.list_node()
+            
+            node_groups = {
+                'controlplane': [],
+                'worker': [],
+                'infra': [],
+                'workload': []
+            }
+            
+            for node in nodes.items:
+                node_name = node.metadata.name
+                labels = node.metadata.labels or {}
+                
+                # Check for control plane nodes
+                if (labels.get('node-role.kubernetes.io/master') == '' or
+                    labels.get('node-role.kubernetes.io/control-plane') == '' or
+                    labels.get('kubernetes.io/role') == 'master'):
+                    node_groups['controlplane'].append(node_name)
+                    
+                # Check for infra nodes
+                elif (labels.get('node-role.kubernetes.io/infra') == '' or
+                      labels.get('node-role.kubernetes.io/infrastructure') == ''):
+                    node_groups['infra'].append(node_name)
+                    
+                # Check for workload nodes (custom label)
+                elif labels.get('node-role.kubernetes.io/workload') == '':
+                    node_groups['workload'].append(node_name)
+                    
+                # Default to worker
+                else:
+                    node_groups['worker'].append(node_name)
+            
+            self.logger.info(f"Node groups - controlplane: {len(node_groups['controlplane'])}, "
+                           f"worker: {len(node_groups['worker'])}, "
+                           f"infra: {len(node_groups['infra'])}, "
+                           f"workload: {len(node_groups['workload'])}")
+            
+            return node_groups
+            
+        except Exception as e:
+            self.logger.error(f"Error getting nodes by group: {e}")
+            return {
+                'controlplane': [],
+                'worker': [],
+                'infra': [],
+                'workload': []
+            }
+    
+    async def get_node_info_by_group(self, group: str) -> List[Dict[str, Any]]:
+        """Get detailed node information for a specific group"""
+        try:
+            node_groups = await self.get_nodes_by_group()
+            node_names = node_groups.get(group, [])
+            
+            if not node_names:
+                return []
+            
+            all_nodes = await self.get_nodes_info()
+            
+            # Filter nodes by group
+            filtered_nodes = [
+                node for node in all_nodes 
+                if node['name'] in node_names
+            ]
+            
+            return filtered_nodes
+            
+        except Exception as e:
+            self.logger.error(f"Error getting node info by group {group}: {e}")
+            return []
+    
     async def get_pod_to_node_mapping(self, namespace: str = "openshift-etcd") -> Dict[str, str]:
         """Get mapping of pod names to node names"""
         try:

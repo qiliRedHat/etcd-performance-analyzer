@@ -17,11 +17,10 @@ from tools.etcd_network_io import NetworkIOCollector
 from tools.etcd_disk_backend_commit import DiskBackendCommitCollector
 from tools.etcd_disk_compact_defrag import CompactDefragCollector
 from analysis.etcd_analyzer_performance_utility import etcdAnalyzerUtility
-
+from tools.etcd_node_usage import nodeUsageCollector
 
 class etcdDeepDriveAnalyzer:
     """Deep drive analyzer for etcd cluster performance"""
-    
     def __init__(self, ocp_auth, duration: str = "1h"):
         self.ocp_auth = ocp_auth
         self.duration = duration
@@ -37,8 +36,13 @@ class etcdDeepDriveAnalyzer:
         self.backend_commit_collector = DiskBackendCommitCollector(ocp_auth)
         self.compact_defrag_collector = CompactDefragCollector(ocp_auth, duration)
         
+        # Initialize node usage collector
+        # Extract prometheus config from ocp_auth
+        prometheus_config = self._get_prometheus_config_from_auth(ocp_auth)
+        self.node_usage_collector = nodeUsageCollector(ocp_auth, prometheus_config)
+        
         self.test_id = self.utility.generate_test_id()
-    
+
     async def analyze_performance_deep_drive(self) -> Dict[str, Any]:
         """Comprehensive performance analysis of etcd cluster"""
         try:
@@ -56,7 +60,8 @@ class etcdDeepDriveAnalyzer:
                     "disk_io_data": [],
                     "network_data": {},
                     "backend_commit_data": [],
-                    "compact_defrag_data": []
+                    "compact_defrag_data": [],
+                    "node_usage_data": {}  # Added node usage
                 },
                 "analysis": {},
                 "summary": {}
@@ -80,8 +85,18 @@ class etcdDeepDriveAnalyzer:
             # 2.6 Collect compact/defrag metrics
             analysis_result["data"]["compact_defrag_data"] = await self._collect_compact_defrag_metrics()
             
+            # 2.7 Collect node usage metrics (NEW)
+            analysis_result["data"]["node_usage_data"] = await self._collect_node_usage_metrics()
+            
             # Perform latency analysis
             analysis_result["analysis"] = self.utility.analyze_latency_patterns(analysis_result["data"])
+            
+            # Analyze node resource utilization if node usage data is available (NEW)
+            if analysis_result["data"]["node_usage_data"].get("status") == "success":
+                node_resource_analysis = self.utility.analyze_node_resource_utilization(
+                    analysis_result["data"]["node_usage_data"]
+                )
+                analysis_result["analysis"]["node_resource_utilization"] = node_resource_analysis
             
             # Create performance summary (include latency analysis so health can be derived)
             summary_input = {**analysis_result["data"], "latency_analysis": analysis_result["analysis"]}
@@ -457,6 +472,9 @@ class etcdDeepDriveAnalyzer:
             # Analyze consensus bottlenecks
             await self._analyze_consensus_bottlenecks(data, bottleneck_analysis)
             
+            # Analyze node resource bottlenecks (NEW)
+            await self._analyze_node_resource_bottlenecks(data, bottleneck_analysis)
+            
             # Generate root cause analysis
             bottleneck_analysis["root_cause_analysis"] = self._generate_root_cause_analysis(bottleneck_analysis)
             
@@ -473,7 +491,7 @@ class etcdDeepDriveAnalyzer:
                 "status": "error",
                 "error": str(e)
             }
-    
+
     async def _analyze_disk_bottlenecks(self, data: Dict[str, Any], analysis: Dict[str, Any]):
         """Analyze disk I/O related bottlenecks"""
         try:
@@ -916,3 +934,172 @@ class etcdDeepDriveAnalyzer:
             })
         
         return recommendations
+
+    def _get_prometheus_config_from_auth(self, ocp_auth) -> Dict[str, Any]:
+        """Extract Prometheus configuration from ocp_auth"""
+        try:
+            # Check if ocp_auth has prometheus_config attribute
+            if hasattr(ocp_auth, 'prometheus_config'):
+                return ocp_auth.prometheus_config
+            
+            # Try to get from dict if ocp_auth is a dict
+            if isinstance(ocp_auth, dict):
+                return ocp_auth.get('prometheus_config', {})
+            
+            # Try to construct from available attributes
+            config = {}
+            
+            if hasattr(ocp_auth, 'prometheus_url'):
+                config['url'] = ocp_auth.prometheus_url
+            elif hasattr(ocp_auth, 'prom_url'):
+                config['url'] = ocp_auth.prom_url
+            
+            if hasattr(ocp_auth, 'token') or hasattr(ocp_auth, 'bearer_token'):
+                token = getattr(ocp_auth, 'token', None) or getattr(ocp_auth, 'bearer_token', None)
+                if token:
+                    config['headers'] = {
+                        'Authorization': f'Bearer {token}'
+                    }
+            
+            return config
+            
+        except Exception as e:
+            self.logger.warning(f"Could not extract prometheus config from ocp_auth: {e}")
+            return {}
+    
+    async def _collect_node_usage_metrics(self) -> Dict[str, Any]:
+        """Collect node usage metrics for master nodes (NEW)"""
+        try:
+            self.logger.info("Collecting node usage metrics")
+            
+            # Call the node usage collector
+            result = await self.node_usage_collector.collect_all_metrics(self.duration)
+            
+            if result.get('status') == 'success':
+                self.logger.info(f"Successfully collected node usage metrics for {result.get('total_nodes', 0)} nodes")
+                
+                # Log summary of collected metrics
+                metrics = result.get('metrics', {})
+                for metric_name, metric_data in metrics.items():
+                    if metric_data.get('status') == 'success':
+                        node_count = len(metric_data.get('nodes', {}))
+                        self.logger.info(f"  - {metric_name}: {node_count} nodes")
+            else:
+                self.logger.warning(f"Node usage collection returned status: {result.get('status')}")
+                if 'error' in result:
+                    self.logger.error(f"Node usage collection error: {result['error']}")
+            
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error in _collect_node_usage_metrics: {e}", exc_info=True)
+            return {
+                'status': 'error',
+                'error': str(e),
+                'timestamp': datetime.now(self.timezone).isoformat()
+            }
+    
+    async def _analyze_node_resource_bottlenecks(self, data: Dict[str, Any], 
+                                                 analysis: Dict[str, Any]):
+        """Analyze node resource bottlenecks (NEW)"""
+        try:
+            node_usage_data = data.get('node_usage_data', {})
+            
+            if node_usage_data.get('status') != 'success':
+                self.logger.warning("Node usage data not available for bottleneck analysis")
+                return
+            
+            metrics = node_usage_data.get('metrics', {})
+            node_capacities = node_usage_data.get('node_capacities', {})
+            
+            # Analyze CPU usage on master nodes
+            cpu_usage = metrics.get('cpu_usage', {})
+            if cpu_usage.get('status') == 'success':
+                nodes = cpu_usage.get('nodes', {})
+                
+                for node_name, node_data in nodes.items():
+                    total = node_data.get('total', {})
+                    modes = node_data.get('modes', {})
+                    
+                    # Calculate CPU utilization
+                    idle_max = modes.get('idle', {}).get('max', 0)
+                    estimated_cores = int(idle_max / 100) if idle_max > 0 else 40
+                    
+                    raw_avg = total.get('avg', 0)
+                    avg_utilization = (raw_avg / estimated_cores) if estimated_cores > 0 else 0
+                    
+                    if avg_utilization > 85:
+                        analysis['bottleneck_analysis']['disk_io_bottlenecks'].append({
+                            "type": "high_node_cpu_usage",
+                            "node": node_name,
+                            "value": round(avg_utilization, 2),
+                            "unit": "percent",
+                            "severity": "high",
+                            "description": f"Master node CPU utilization exceeds 85%"
+                        })
+                    elif avg_utilization > 70:
+                        analysis['bottleneck_analysis']['disk_io_bottlenecks'].append({
+                            "type": "elevated_node_cpu_usage",
+                            "node": node_name,
+                            "value": round(avg_utilization, 2),
+                            "unit": "percent",
+                            "severity": "medium",
+                            "description": f"Master node CPU utilization elevated above 70%"
+                        })
+            
+            # Analyze memory usage on master nodes
+            memory_used = metrics.get('memory_used', {})
+            if memory_used.get('status') == 'success':
+                nodes = memory_used.get('nodes', {})
+                
+                for node_name, node_data in nodes.items():
+                    avg_used = node_data.get('avg', 0)
+                    total_capacity = node_data.get('total_capacity', 0)
+                    
+                    if total_capacity > 0:
+                        avg_percent = (avg_used / total_capacity) * 100
+                        
+                        if avg_percent > 85:
+                            analysis['bottleneck_analysis']['memory_bottlenecks'].append({
+                                "type": "high_node_memory_usage",
+                                "node": node_name,
+                                "value": round(avg_percent, 2),
+                                "unit": "percent",
+                                "severity": "high",
+                                "description": f"Master node memory utilization exceeds 85%"
+                            })
+                        elif avg_percent > 70:
+                            analysis['bottleneck_analysis']['memory_bottlenecks'].append({
+                                "type": "elevated_node_memory_usage",
+                                "node": node_name,
+                                "value": round(avg_percent, 2),
+                                "unit": "percent",
+                                "severity": "medium",
+                                "description": f"Master node memory utilization elevated above 70%"
+                            })
+            
+            # Analyze cgroup resource usage
+            cgroup_cpu = metrics.get('cgroup_cpu_usage', {})
+            if cgroup_cpu.get('status') == 'success':
+                nodes = cgroup_cpu.get('nodes', {})
+                
+                for node_name, node_data in nodes.items():
+                    cgroups = node_data.get('cgroups', {})
+                    kubepods_usage = cgroups.get('kubepods.slice', {}).get('avg', 0)
+                    
+                    if kubepods_usage > 150:  # High CPU usage by kubepods
+                        analysis['bottleneck_analysis']['consensus_bottlenecks'].append({
+                            "type": "high_kubepods_cpu",
+                            "node": node_name,
+                            "value": round(kubepods_usage, 2),
+                            "unit": "percent",
+                            "severity": "medium",
+                            "description": f"High CPU usage by kubepods.slice on master node"
+                        })
+        
+        except Exception as e:
+            self.logger.error(f"Error analyzing node resource bottlenecks: {e}", exc_info=True)
+    
+
+
+
