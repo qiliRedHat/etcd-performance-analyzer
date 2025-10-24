@@ -1797,8 +1797,8 @@ class etcdReportAnalyzer:
             self.logger.error(f"Error generating performance report: {e}")
             return f"Error generating performance report: {str(e)}"
 
-    async def script_based_root_cause_analysis(self, failed_thresholds: List[Dict[str, Any]],
-                                            metrics_data: Dict[str, Any]) -> Dict[str, Any]:
+    def script_based_root_cause_analysis(self, failed_thresholds: List[Dict[str, Any]],
+                                         metrics_data: Dict[str, Any]) -> Dict[str, Any]:
         """Provide a lightweight, scripted root-cause analysis based on collected metrics.
 
         Returns a structured summary consumed by the agent, including:
