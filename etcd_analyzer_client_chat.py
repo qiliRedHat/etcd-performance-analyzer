@@ -345,7 +345,7 @@ Always structure your responses with:
 - Detailed technical analysis
 - Specific recommendations with priority levels
 - Next steps for investigation or remediation
-- Highlight critial issue or higher than threshold via red charactor/words, Using green or yellow and other colour to distiguish different info/warning/status, make the analysis result readable and clear
+- Highlight critial issue or higher than threshold via red charactor/words, Using bold green or bold orange, or bold purple and other colour to distiguish different info/warning/status, make the analysis result readable and clear
 - Don't create table when analysis cluster info and etcd status.
 
 Be thorough but concise, and always explain the business impact of technical issues."""
