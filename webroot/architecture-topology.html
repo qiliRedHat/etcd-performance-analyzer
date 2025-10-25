@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETCD Analyzer - Architecture Topology</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .layer {
+            margin-bottom: 30px;
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+
+        .layer:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .layer:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .layer:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .layer:nth-child(4) {
+            animation-delay: 0.4s;
+        }
+
+        .layer:nth-child(5) {
+            animation-delay: 0.5s;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .layer-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 15px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1.2em;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .layer-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .layer-header:hover::before {
+            left: 100%;
+        }
+
+        .layer-icon {
+            font-size: 1.5em;
+            margin-right: 15px;
+        }
+
+        .client-layer {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .agent-layer {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .mcp-layer {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .data-layer {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+
+        .infra-layer {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .components {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            padding: 0 20px;
+        }
+
+        .component {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 2px solid #e2e8f0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .component::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .component:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            border-color: #667eea;
+        }
+
+        .component-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 12px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+        }
+
+        .component-icon {
+            margin-right: 10px;
+            font-size: 1.3em;
+        }
+
+        .component-list {
+            list-style: none;
+            color: #4a5568;
+            font-size: 0.95em;
+            line-height: 1.8;
+        }
+
+        .component-list li {
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .component-list li::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .arrow-down {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 2em;
+            color: #a0aec0;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            20%,
+            50%,
+            80%,
+            100% {
+                transform: translateY(0);
+            }
+
+            40% {
+                transform: translateY(-10px);
+            }
+
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-left: 10px;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .connection-line {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #cbd5e0, transparent);
+            margin: 10px 0;
+        }
+
+        .protocol-badge {
+            display: inline-block;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+            margin: 10px auto;
+            text-align: center;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .feature-tag {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            color: #4a5568;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%);
+            border-radius: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .components {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 ETCD Analyzer Architecture</h1>
+        <p class="subtitle">AI-Powered Performance Analysis Platform for OpenShift/Kubernetes</p>
+
+        <!-- Client Layer -->
+        <div class="layer">
+            <div class="layer-header client-layer">
+                <span class="layer-icon">💻</span>
+                <span>Client Layer</span>
+                <span class="badge">Multi-Interface</span>
+            </div>
+            <div class="components">
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🌐</span>
+                        Web UI
+                    </div>
+                    <ul class="component-list">
+                        <li>Interactive Browser Interface</li>
+                        <li>Real-time Chat</li>
+                        <li>Streaming Responses</li>
+                        <li>HTML Table Visualization</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">⌨️</span>
+                        CLI Client
+                    </div>
+                    <ul class="component-list">
+                        <li>Terminal Interface</li>
+                        <li>Interactive Commands</li>
+                        <li>Script Automation</li>
+                        <li>Batch Operations</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🔌</span>
+                        REST API
+                    </div>
+                    <ul class="component-list">
+                        <li>HTTP/HTTPS Endpoints</li>
+                        <li>JSON Requests</li>
+                        <li>SSE Streaming</li>
+                        <li>Integration Ready</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+        <div style="text-align: center;">
+            <div class="protocol-badge">HTTP/SSE Protocol</div>
+        </div>
+        <div class="arrow-down">↓</div>
+
+        <!-- AI Agent Layer -->
+        <div class="layer">
+            <div class="layer-header agent-layer">
+                <span class="layer-icon">🤖</span>
+                <span>AI Agent Layer</span>
+                <span class="badge">Port 8080</span>
+            </div>
+            <div class="components">
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">💬</span>
+                        ChatBot Agent
+                    </div>
+                    <ul class="component-list">
+                        <li>LangGraph React Agent</li>
+                        <li>Conversation Memory</li>
+                        <li>Tool Execution</li>
+                        <li>Streaming Responses</li>
+                        <li>Custom Prompts</li>
+                    </ul>
+                    <div class="features-grid">
+                        <div class="feature-tag">FastAPI</div>
+                        <div class="feature-tag">LangChain</div>
+                    </div>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">📊</span>
+                        Report Agent
+                    </div>
+                    <ul class="component-list">
+                        <li>Deep Drive Analysis</li>
+                        <li>Script-based RCA</li>
+                        <li>AI-powered Analysis</li>
+                        <li>Executive Reports</li>
+                        <li>Recommendations</li>
+                    </ul>
+                    <div class="features-grid">
+                        <div class="feature-tag">StateGraph</div>
+                        <div class="feature-tag">Streaming</div>
+                    </div>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">💾</span>
+                        Storage Agent
+                    </div>
+                    <ul class="component-list">
+                        <li>DuckDB ELT Pipeline</li>
+                        <li>Time-Series Storage</li>
+                        <li>Historical Analysis</li>
+                        <li>Query Interface</li>
+                        <li>Data Summaries</li>
+                    </ul>
+                    <div class="features-grid">
+                        <div class="feature-tag">DuckDB</div>
+                        <div class="feature-tag">SQL</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+        <div style="text-align: center;">
+            <div class="protocol-badge">MCP Protocol</div>
+        </div>
+        <div class="arrow-down">↓</div>
+
+        <!-- MCP Server Layer -->
+        <div class="layer">
+            <div class="layer-header mcp-layer">
+                <span class="layer-icon">🔧</span>
+                <span>MCP Server Layer</span>
+                <span class="badge">Port 8000</span>
+            </div>
+            <div class="components">
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">❤️</span>
+                        Health & Status
+                    </div>
+                    <ul class="component-list">
+                        <li>Server Health Check</li>
+                        <li>Cluster Status</li>
+                        <li>OCP Cluster Info</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">📈</span>
+                        General Metrics
+                    </div>
+                    <ul class="component-list">
+                        <li>CPU & Memory Usage</li>
+                        <li>Proposal Metrics</li>
+                        <li>Leadership Info</li>
+                        <li>Node Resource Usage</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">💿</span>
+                        Disk Performance
+                    </div>
+                    <ul class="component-list">
+                        <li>WAL Fsync Latency</li>
+                        <li>Backend Commit</li>
+                        <li>Disk I/O & IOPS</li>
+                        <li>Compact/Defrag</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🌐</span>
+                        Network Performance
+                    </div>
+                    <ul class="component-list">
+                        <li>Peer Latency P99</li>
+                        <li>Container Network</li>
+                        <li>Node Utilization</li>
+                        <li>Packet Statistics</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🔍</span>
+                        Advanced Analysis
+                    </div>
+                    <ul class="component-list">
+                        <li>Performance Deep Drive</li>
+                        <li>Bottleneck Detection</li>
+                        <li>Report Generation</li>
+                        <li>Root Cause Analysis</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- Data Collection Layer -->
+        <div class="layer">
+            <div class="layer-header data-layer">
+                <span class="layer-icon">📦</span>
+                <span>Data Collection & Processing Layer</span>
+            </div>
+            <div class="components">
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">📡</span>
+                        Metric Collectors
+                    </div>
+                    <ul class="component-list">
+                        <li>General Info Collector</li>
+                        <li>WAL Fsync Collector</li>
+                        <li>Disk I/O Collector</li>
+                        <li>Network I/O Collector</li>
+                        <li>Node Usage Collector</li>
+                        <li>Cluster Status Collector</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🧮</span>
+                        Analysis Modules
+                    </div>
+                    <ul class="component-list">
+                        <li>Deep Drive Analyzer</li>
+                        <li>Performance Reporter</li>
+                        <li>Bottleneck Analyzer</li>
+                        <li>Utility Functions</li>
+                        <li>Threshold Validation</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🔄</span>
+                        ELT Pipeline
+                    </div>
+                    <ul class="component-list">
+                        <li>JSON Transformation</li>
+                        <li>HTML Table Generator</li>
+                        <li>Data Validation</li>
+                        <li>Metric Formatting</li>
+                        <li>Visualization Prep</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🗄️</span>
+                        Storage Layer
+                    </div>
+                    <ul class="component-list">
+                        <li>DuckDB Backend</li>
+                        <li>Schema Management</li>
+                        <li>Time-Series Tables</li>
+                        <li>Query Optimization</li>
+                        <li>Data Retention</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- Infrastructure Layer -->
+        <div class="layer">
+            <div class="layer-header infra-layer">
+                <span class="layer-icon">☁️</span>
+                <span>Target Infrastructure</span>
+                <span class="badge">OpenShift/K8s</span>
+            </div>
+            <div class="components">
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🎯</span>
+                        ETCD Cluster
+                    </div>
+                    <ul class="component-list">
+                        <li>etcd-0 (Leader)</li>
+                        <li>etcd-1 (Follower)</li>
+                        <li>etcd-2 (Follower)</li>
+                        <li>Raft Consensus</li>
+                        <li>Data Replication</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">🖥️</span>
+                        Master Nodes
+                    </div>
+                    <ul class="component-list">
+                        <li>CPU Resources</li>
+                        <li>Memory Management</li>
+                        <li>Network Interfaces</li>
+                        <li>Disk Storage</li>
+                        <li>Cgroup Controls</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <div class="component-title">
+                        <span class="component-icon">📊</span>
+                        Monitoring Stack
+                    </div>
+                    <ul class="component-list">
+                        <li>Prometheus Server</li>
+                        <li>Thanos (Optional)</li>
+                        <li>Metrics Collection</li>
+                        <li>PromQL Engine</li>
+                        <li>Long-term Storage</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number">15+</div>
+                <div class="stat-label">MCP Tools</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">50+</div>
+                <div class="stat-label">Metrics Collected</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">3</div>
+                <div class="stat-label">AI Agents</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">∞</div>
+                <div class="stat-label">Insights Generated</div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
