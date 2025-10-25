@@ -36,7 +36,7 @@ The ETCD Analyzer features a beautiful, interactive architecture visualization w
 - Clear data flow visualization
 
 To view the interactive diagram:
-1. Save the topology HTML file from `webroot/architecture-topology.html`
+1. Save the topology HTML file from `docs/architecture-topology.html`
 2. Open it in any modern web browser
 3. Explore the interactive architecture
 
