@@ -559,8 +559,8 @@ etcd-analyzer/
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/your-org/etcd-analyzer.git
-cd etcd-analyzer
+git clone https://github.com/liqcui/etcd-performance-analyzer.git
+cd etcd-performance-analyzer
 ```
 
 ### Step 2: Create Virtual Environment
