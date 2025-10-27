@@ -575,7 +575,11 @@ venv\Scripts\activate  # Windows
 ### Step 3: Install Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt 
+```
+or 
+```bash
+pip3 install -e . 
 ```
 
 **Required packages:**
