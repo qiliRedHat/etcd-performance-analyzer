@@ -1,6 +1,6 @@
 """
-etcd Analyzer Performance Utility Module
-Common utility functions for etcd performance analysis
+node Analyzer Performance Utility Module
+Common utility functions for node performance analysis
 """
 
 import asyncio
@@ -11,8 +11,8 @@ from datetime import datetime
 import pytz
 
 
-class etcdAnalyzerUtility:
-    """Utility class for etcd performance analysis operations"""
+class nodeAnalyzerUtility:
+    """Utility class for node performance analysis operations"""
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
