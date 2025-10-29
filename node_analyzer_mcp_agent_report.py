@@ -176,8 +176,11 @@ class nodeAnalyzerMCPAgent:
                 
                 stream_print(" ✅ Done")
                 stream_print("\n📦 Metrics Summary:")
-                stream_print(f"  • Node cpu metrics: {len(data.get('node_usage_data', []).get('metrics',[]))} records")
-                
+                stream_print(f"  • Node cpu metrics: {len(data.get('node_usage_data', []).get('metrics',[]).get('cpu_usage',{}).get('nodes',[]))} records")
+                stream_print(f"  • Node memory metrics: {len(data.get('node_usage_data', []).get('metrics',[]).get('memory_used',{}).get('nodes',[]))} records")
+                stream_print(f"  • Node cgroup cpu metrics: {len(data.get('node_usage_data', []).get('metrics',[]).get('cgroup_cpu_usage',{}).get('nodes',[]))} records")
+                stream_print(f"  • Node cgroup rss metrics: {len(data.get('node_usage_data', []).get('metrics',[]).get('cgroup_rss_usage',{}).get('nodes',[]))} records")
+               
                 state["messages"].append(AIMessage(content="Metrics collected successfully"))
             else:
                 error_msg = f"❌ Failed to collect metrics: {metrics_data.get('error', 'Unknown error')}"
