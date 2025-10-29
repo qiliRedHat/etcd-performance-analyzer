@@ -867,7 +867,7 @@ async def get_node_performance_deep_drive(
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
     input: DeepDriveInput | None = None,
-) -> ETCDPerformanceDeepDriveResponse:
+) -> NODEPerformanceDeepDriveResponse:
     """
     Perform comprehensive etcd performance deep drive analysis across all critical subsystems.
     
@@ -901,7 +901,7 @@ async def get_node_performance_deep_drive(
         duration: Time range for metrics collection and analysis. Examples: '15m', '30m', '1h', '2h', '6h', '12h', '1d'. Default: '1h'
     
     Returns:
-        ETCDPerformanceDeepDriveResponse: Comprehensive performance analysis including all subsystem metrics, latency analysis, performance summary, and actionable insights with unique test ID for tracking
+        NODEPerformanceDeepDriveResponse: Comprehensive performance analysis including all subsystem metrics, latency analysis, performance summary, and actionable insights with unique test ID for tracking
     """
     try:
         global ocp_auth
