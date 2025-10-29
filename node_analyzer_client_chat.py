@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-OpenShift etcd Analyzer MCP Client with FastAPI and LangGraph Integration
-Provides AI-powered chat interface for interacting with etcd analysis MCP tools
+OpenShift node Analyzer MCP Client with FastAPI and LangGraph Integration
+Provides AI-powered chat interface for interacting with node analysis MCP tools
 """
 
 import asyncio
@@ -28,7 +28,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
-from elt.etcd_analyzer_elt_json2table import json_to_html_table
+from elt.node_analyzer_elt_json2table import json_to_html_table
 
 import warnings
 warnings.filterwarnings(
@@ -254,7 +254,7 @@ class MCPClient:
             "last_check": datetime.now(timezone.utc).isoformat()
         }
 
-    async def check_etcd_analyzer_health(self) -> Dict[str, Any]:
+    async def check_node_analyzer_health(self) -> Dict[str, Any]:
         try:
             await self.connect()
             
@@ -287,7 +287,7 @@ class MCPClient:
                 
                 return {
                     "status": "healthy" if collectors_initialized else "partial",
-                    "etcd_analyzer_connection": "ok",
+                    "node_analyzer_connection": "ok",
                     "tools_available": len(self.available_tools),
                     "collectors_initialized": collectors_initialized,
                     "overall_health": overall_health,
@@ -298,7 +298,7 @@ class MCPClient:
             else:
                 return {
                     "status": "partial",
-                    "etcd_analyzer_connection": "error",
+                    "node_analyzer_connection": "error",
                     "tools_available": len(self.available_tools),
                     "tool_error": "Health check tools failed or returned empty responses",
                     "overall_health": "unknown",
@@ -306,17 +306,17 @@ class MCPClient:
                 }
                 
         except Exception as e:
-            logger.error(f"etcd analyzer connectivity check failed: {e}")
+            logger.error(f"node analyzer connectivity check failed: {e}")
             return {
                 "status": "unhealthy",
-                "etcd_analyzer_connection": "unknown", 
+                "node_analyzer_connection": "unknown", 
                 "error": str(e),
                 "overall_health": "unknown",
                 "last_check": datetime.now(timezone.utc).isoformat()
             }
 
 class ChatBot:
-    """LangGraph-powered chatbot for etcd analyzer MCP interaction"""
+    """LangGraph-powered chatbot for node analyzer MCP interaction"""
     
     def __init__(self, mcp_client: MCPClient):
         self.mcp_client = mcp_client
@@ -324,14 +324,14 @@ class ChatBot:
         self.conversations = {}
         self.conversation_system_prompts = {}
         
-        self.default_system_prompt = """You are an expert OpenShift etcd performance analyst with deep knowledge of:
-- etcd cluster health monitoring and diagnostics
+        self.default_system_prompt = """You are an expert OpenShift node kubelet crio performance analyst with deep knowledge of:
+- cluster node kubelet crio health monitoring and diagnostics
 - OpenShift cluster troubleshooting and performance optimization
 - Distributed systems analysis and debugging
 - Performance metrics interpretation and correlation
 - Be able to explain metrics and typical scenario that used for metrics
 
-When analyzing etcd data:
+When analyzing node kubelet crio data:
 1. Focus on performance bottlenecks, health issues, and optimization opportunities
 2. Provide actionable insights and specific recommendations
 3. Explain technical findings in clear, structured responses
@@ -346,7 +346,7 @@ Always structure your responses with:
 - Specific recommendations with priority levels
 - Next steps for investigation or remediation
 - Highlight critial issue or higher than threshold via red charactor/words, Using bold green or bold orange, or bold purple and other colour to distiguish different info/warning/status, make the analysis result readable and clear
-- Don't create table when analysis cluster info and etcd status.
+- Don't create table when analysis cluster info and node kubelet crio status.
 
 Be thorough but concise, and always explain the business impact of technical issues."""
 
@@ -482,10 +482,10 @@ chatbot = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global chatbot
-    logger.info("Starting node Analyzer MCP Client...")
+    logger.info("Starting Node Analyzer MCP Client...")
     connected = await mcp_client.connect()
     if connected:
-        logger.info("node Analyzer MCP Client connected successfully")
+        logger.info("Node Analyzer MCP Client connected successfully")
         chatbot = ChatBot(mcp_client)
     else:
         logger.warning("Failed to connect to MCP server, continuing with limited functionality")
@@ -508,19 +508,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-HTML_FILE_PATH = os.path.join(os.path.dirname(__file__), "webroot", "etcd_analyzer_mcp_llm.html")
+HTML_FILE_PATH = os.path.join(os.path.dirname(__file__), "webroot", "node_analyzer_mcp_llm.html")
 
 @app.get("/", include_in_schema=False)
 async def serve_root_html():
     if os.path.exists(HTML_FILE_PATH):
         return FileResponse(HTML_FILE_PATH, media_type="text/html")
-    raise HTTPException(status_code=404, detail="etcd_analyzer_mcp_llm.html not found")
+    raise HTTPException(status_code=404, detail="node_analyzer_mcp_llm.html not found")
 
 @app.get("/ui", include_in_schema=False)
 async def serve_ui_html():
     if os.path.exists(HTML_FILE_PATH):
         return FileResponse(HTML_FILE_PATH, media_type="text/html")
-    raise HTTPException(status_code=404, detail="etcd_analyzer_mcp_llm.html not found")
+    raise HTTPException(status_code=404, detail="node_analyzer_mcp_llm.html not found")
 
 @app.get("/api/mcp/health", response_model=HealthResponse)
 async def mcp_health_check():
@@ -531,9 +531,9 @@ async def mcp_health_check():
         details=health_data
     )
 
-@app.get("/api/etcd/health", response_model=HealthResponse)
-async def etcd_health_check():
-    health_data = await mcp_client.check_etcd_analyzer_health()
+@app.get("/api/node/health", response_model=HealthResponse)
+async def node_health_check():
+    health_data = await mcp_client.check_node_analyzer_health()
     return HealthResponse(
         status=health_data["status"],
         timestamp=health_data["last_check"],

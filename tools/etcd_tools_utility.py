@@ -111,6 +111,42 @@ class mcpToolsUtility:
         except Exception as e:
             self.logger.error(f"Error getting master nodes: {e}")
             return []
+        
+    async def get_worker_nodes(self) -> List[str]:
+        """Get list of worker node names"""
+        try:
+            current_time = asyncio.get_event_loop().time()
+            
+            if not self.ocp_auth.k8s_client:
+                raise RuntimeError("Kubernetes client not initialized")
+                
+            v1 = client.CoreV1Api(self.ocp_auth.k8s_client)
+            nodes = v1.list_node()
+            
+            worker_nodes = []
+            for node in nodes.items:
+                labels = node.metadata.labels or {}
+                
+                # Check for worker labels
+                is_worker = (
+                    labels.get('node-role.kubernetes.io/worker') == '' or
+                    labels.get('kubernetes.io/role') == 'worker'
+                )
+                
+                if is_worker:
+                    worker_nodes.append(node.metadata.name)
+                    self.logger.debug(f"Found worker node: {node.metadata.name}")
+            
+            # Update cache
+            self._master_nodes_cache = worker_nodes
+            self._cache_timestamp = current_time
+            
+            self.logger.info(f"Found {len(worker_nodes)} worker nodes: {worker_nodes}")
+            return worker_nodes
+            
+        except Exception as e:
+            self.logger.error(f"Error getting worker nodes: {e}")
+            return []
     
     async def get_nodes_by_group(self) -> Dict[str, List[str]]:
         """Get nodes grouped by role: controlplane/worker/infra/workload"""
