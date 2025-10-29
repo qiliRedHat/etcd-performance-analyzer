@@ -340,7 +340,8 @@ class nodeAnalyzerMCPAgent:
             #failed_thresholds = self._identify_failed_thresholds(analysis_results)
             failed_thresholds = {}
 
-            if failed_thresholds and script_analysis:
+            #if failed_thresholds and script_analysis:
+            if metrics_data:
                 stream_print("🧠 Invoking AI model for deep analysis...")
                 stream_print("⏳ Processing with LLM (streaming)...\n")
                 
