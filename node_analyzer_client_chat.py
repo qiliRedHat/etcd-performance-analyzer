@@ -91,7 +91,7 @@ class MCPTool(BaseTool):
             return f"Error: {str(e)}"
 
 class MCPClient:
-    """MCP Client for interacting with the node analyzer server"""
+    """MCP Client for interacting with the etcd analyzer server"""
     
     def __init__(self, mcp_server_url: str = "http://localhost:8000"):
         self.mcp_server_url = mcp_server_url
@@ -482,20 +482,20 @@ chatbot = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global chatbot
-    logger.info("Starting node Analyzer MCP Client...")
+    logger.info("Starting etcd Analyzer MCP Client...")
     connected = await mcp_client.connect()
     if connected:
-        logger.info("node Analyzer MCP Client connected successfully")
+        logger.info("etcd Analyzer MCP Client connected successfully")
         chatbot = ChatBot(mcp_client)
     else:
         logger.warning("Failed to connect to MCP server, continuing with limited functionality")
         chatbot = ChatBot(mcp_client)
     yield
-    logger.info("Shutting down node Analyzer MCP Client...")
+    logger.info("Shutting down etcd Analyzer MCP Client...")
 
 app = FastAPI(
-    title="node Analyzer MCP Client",
-    description="AI-powered chat interface for OpenShift node performance analysis",
+    title="etcd Analyzer MCP Client",
+    description="AI-powered chat interface for OpenShift etcd performance analysis",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -651,7 +651,7 @@ async def chat_simple(request: ChatRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "node_analyzer_client_chat:app",
+        "etcd_analyzer_client_chat:app",
         host="0.0.0.0",
         port=8080,
         reload=True,
