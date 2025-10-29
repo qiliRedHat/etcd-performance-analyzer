@@ -166,9 +166,6 @@ class nodeAnalyzerMCPAgent:
             stream_print("⏳ Fetching metrics...", end="")
             
             metrics_data = await self._call_mcp_tool("get_node_performance_deep_drive", params)
-
-            # output the metrics_data contents
-            stream_print(f"\n{metrics_data}")
             
             if metrics_data and metrics_data.get("status") == "success":
                 state["metrics_data"] = metrics_data
@@ -328,17 +325,21 @@ class nodeAnalyzerMCPAgent:
         stream_print("🤖 AI-POWERED ROOT CAUSE ANALYSIS")
         stream_print("="*100)
         
-        if state.get("error") or not state.get("script_analysis"):
+        #if state.get("error") or not state.get("script_analysis"):
+        if state.get("error"):
             stream_print("⏭️  Skipping AI analysis")
             return state
             
         try:
-            analysis_results = state["analysis_results"]
+            #analysis_results = state["analysis_results"]
+            analysis_results = {}
             metrics_data = state["metrics_data"]
-            script_analysis = state["script_analysis"]
+            #script_analysis = state["script_analysis"]
+            script_analysis = {}
             
-            failed_thresholds = self._identify_failed_thresholds(analysis_results)
-            
+            #failed_thresholds = self._identify_failed_thresholds(analysis_results)
+            failed_thresholds = {}
+
             if failed_thresholds and script_analysis:
                 stream_print("🧠 Invoking AI model for deep analysis...")
                 stream_print("⏳ Processing with LLM (streaming)...\n")
