@@ -15,10 +15,10 @@ class nodeReportAnalyzer:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.utility = etcdAnalyzerUtility()
+        self.utility = nodeAnalyzerUtility()
         self.timezone = pytz.UTC
         
-        # Performance thresholds (based on etcd best practices)
+        # Performance thresholds (based on node best practices)
         self.thresholds = {
             'wal_fsync_p99_ms': 10.0,
             'backend_commit_p99_ms': 25.0,
@@ -652,7 +652,7 @@ class nodeReportAnalyzer:
             
         return analysis
     """
-    Continuation of etcd_analyzer_performance_report.py
+    Continuation of node_analyzer_performance_report.py
     Includes remaining analysis methods
     """
 

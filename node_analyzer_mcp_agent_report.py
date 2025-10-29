@@ -29,6 +29,7 @@ from mcp.client.session import ClientSession
 # Import analysis modules
 from analysis.node_analyzer_performance_report import nodeReportAnalyzer
 from analysis.node_analyzer_performance_utility import nodeAnalyzerUtility
+from analysis.etcd_analyzer_performance_utility import etcdAnalyzerUtility
 
 logging.basicConfig(
     level=logging.INFO,
