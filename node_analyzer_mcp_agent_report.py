@@ -176,7 +176,7 @@ class nodeAnalyzerMCPAgent:
                 
                 stream_print(" ✅ Done")
                 stream_print("\n📦 Metrics Summary:")
-                stream_print(f"  • Node cpu metrics: {len(data.get('node_usage_data', [])).get('metrics',[])} records")
+                stream_print(f"  • Node cpu metrics: {len(data.get('node_usage_data', []).get('metrics',[]))} records")
                 
                 state["messages"].append(AIMessage(content="Metrics collected successfully"))
             else:
