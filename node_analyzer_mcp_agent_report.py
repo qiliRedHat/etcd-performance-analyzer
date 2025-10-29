@@ -419,7 +419,7 @@ class nodeAnalyzerMCPAgent:
         try:
             context = self._prepare_cluster_overview(metrics_data)
             
-            prompt = f"""You are an expert etcd performance analyst. Analyze the following data and provide root cause analysis.
+            prompt = f"""You are an expert node performance analyst. Analyze the following data and provide root cause analysis.
 
 Failed Thresholds:
 {json.dumps(failed_thresholds, indent=2)}
@@ -620,12 +620,12 @@ Focus on: Disk I/O, CPU, Network, Memory, Database maintenance"""
 
     async def run_analysis(self, duration: str = "1h", start_time: datetime = None, end_time: datetime = None) -> Dict[str, Any]:
         """Run the complete performance analysis workflow with full streaming output"""
-        logger.info("Starting etcd performance analysis...")
+        logger.info("Starting node performance analysis...")
         
         initial_state = {
             "messages": [
-                SystemMessage(content="OVNK etcd Performance Analyzer"),
-                HumanMessage(content=f"Analyze etcd performance")
+                SystemMessage(content="Node Performance Analyzer"),
+                HumanMessage(content=f"Analyze node performance")
             ],
             "metrics_data": None,
             "analysis_results": None,
@@ -682,7 +682,7 @@ async def main():
     stream_print("="*100)
     
     try:
-        agent = etcdAnalyzerMCPAgent()
+        agent = nodeAnalyzerMCPAgent()
         
         mode = input("\n🔍 Select mode (1=Duration, 2=Time Range, default=1): ").strip() or "1"
         
