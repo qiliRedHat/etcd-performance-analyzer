@@ -176,11 +176,7 @@ class nodeAnalyzerMCPAgent:
                 
                 stream_print(" ✅ Done")
                 stream_print("\n📦 Metrics Summary:")
-                stream_print(f"  • WAL fsync metrics: {len(data.get('wal_fsync_data', []))} records")
-                stream_print(f"  • Backend commit metrics: {len(data.get('backend_commit_data', []))} records")
-                stream_print(f"  • General info metrics: {len(data.get('general_info_data', []))} records")
-                stream_print(f"  • Disk metrics: {len(data.get('disk_metrics_data', []))} records")
-                stream_print(f"  • Network metrics: {len(data.get('network_metrics_data', []))} records")
+                stream_print(f"  • Node cpu metrics: {len(data.get('node_usage_data', [])).get('metrics',[])} records")
                 
                 state["messages"].append(AIMessage(content="Metrics collected successfully"))
             else:

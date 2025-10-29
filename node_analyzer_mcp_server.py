@@ -241,7 +241,7 @@ class PerformanceReportInput(MCPBaseModel):
         description="Optional custom test identifier for tracking this performance analysis run. If not provided, will be auto-generated"
     )
 # Initialize MCP server
-mcp = FastMCP("OpenShift etcd Analyzer")
+mcp = FastMCP("OpenShift node Analyzer")
 
 # Global variables for collectors
 ocp_auth = None
@@ -307,13 +307,13 @@ async def get_server_health() -> ServerHealthResponse:
     """
     Get server health status and collector initialization status.
     
-    Checks the health and readiness of the etcd analyzer server and all its components:
+    Checks the health and readiness of the node analyzer server and all its components:
     - Overall server health status
     - Individual collector initialization status
     - OpenShift authentication status
     - Timestamp of health check
     
-    Use this tool to verify that the etcd analyzer is properly configured and ready to collect metrics.
+    Use this tool to verify that the node analyzer is properly configured and ready to collect metrics.
     
     Returns:
         ServerHealthResponse: Health status information including overall status, collector readiness, and component details
@@ -353,7 +353,7 @@ async def get_ocp_cluster_info() -> OCPClusterInfoResponse:
     """
     Get comprehensive OpenShift cluster information and infrastructure details.
     
-    Collects detailed information about the OpenShift cluster hosting the etcd cluster:
+    Collects detailed information about the OpenShift cluster:
     - Cluster identification (name, version, platform - AWS/Azure/GCP/etc.)
     - Node information (master, infra, worker nodes with specs and status)
     - Resource counts (namespaces, pods, services, secrets, configmaps)
@@ -362,7 +362,7 @@ async def get_ocp_cluster_info() -> OCPClusterInfoResponse:
     - Cluster operator status (unavailable operators)
     - Machine Config Pool (MCP) status
     
-    This provides context for etcd performance by showing the cluster environment.
+    This provides context for node performance by showing the cluster environment.
     
     Returns:
         OCPClusterInfoResponse: Comprehensive cluster information including cluster details, node inventory, resource statistics, and operator status
@@ -396,9 +396,9 @@ async def get_ocp_cluster_info() -> OCPClusterInfoResponse:
         )
 
 @mcp.tool()
-async def get_etcd_node_usage(duration: str = "1h") -> ETCDNodeUsageResponse:
+async def get_node_node_usage(duration: str = "1h") -> ETCDNodeUsageResponse:
     """
-    Get comprehensive node usage metrics for master nodes hosting etcd.
+    Get comprehensive node usage metrics for master nodes.
     
     Monitors resource utilization metrics at the node and cgroup level for master nodes:
     - Node CPU usage by mode (user, system, idle, iowait, etc.)
@@ -412,10 +412,10 @@ async def get_etcd_node_usage(duration: str = "1h") -> ETCDNodeUsageResponse:
     - CPU contention and workload distribution patterns
     - Memory pressure and caching efficiency
     - Container-level resource consumption via cgroups
-    - Potential resource bottlenecks affecting etcd performance
+    - Potential resource bottlenecks affecting node kubelet crio performance
     
-    Node resource constraints can directly impact etcd cluster stability and performance.
-    High CPU usage (>80%) or memory pressure can cause etcd timeouts and degraded performance.
+    Node resource constraints can directly impact cluster stability and performance.
+    High CPU usage (>80%) or memory pressure can cause node notready and degraded performance.
     
     Args:
         duration: Time range for metrics collection. Examples: '15m', '30m', '1h', '2h', '6h', '12h', '1d'
@@ -869,9 +869,9 @@ async def get_node_performance_deep_drive(
     input: DeepDriveInput | None = None,
 ) -> NODEPerformanceDeepDriveResponse:
     """
-    Perform comprehensive etcd performance deep drive analysis across all critical subsystems.
+    Perform comprehensive node kubelet crio performance deep drive analysis across all critical subsystems.
     
-    This tool executes an in-depth performance analysis of the etcd cluster by collecting and analyzing metrics from multiple subsystems:
+    This tool executes an in-depth performance analysis of the node kubelet crio by collecting and analyzing metrics from multiple subsystems:
     
     **Collected Metrics:**
     - General cluster metrics: CPU/memory usage, proposal rates, leadership changes, operation rates
@@ -895,7 +895,7 @@ async def get_node_performance_deep_drive(
     - Identifying performance trends and patterns
     - Generating detailed performance reports for stakeholders
     
-    The analysis provides a holistic view of etcd performance, making it easier to identify performance bottlenecks and optimization opportunities across the entire cluster stack.
+    The analysis provides a holistic view of node kubelet crio performance, making it easier to identify performance bottlenecks and optimization opportunities across the entire cluster stack.
     
     Args:
         duration: Time range for metrics collection and analysis. Examples: '15m', '30m', '1h', '2h', '6h', '12h', '1d'. Default: '1h'
@@ -936,7 +936,7 @@ async def get_node_performance_deep_drive(
         )
         
     except Exception as e:
-        logger.error(f"Error performing etcd performance deep drive analysis: {e}")
+        logger.error(f"Error performing node performance deep drive analysis: {e}")
         return NODEPerformanceDeepDriveResponse(
             status="error",
             error=str(e),
