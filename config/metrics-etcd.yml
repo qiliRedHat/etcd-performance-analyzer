@@ -470,3 +470,12 @@ metrics:
     unit: percent
     description: "memory cache buffer usage per nodes"
     category: node_usage
+
+#Node General Information Metrics
+
+  - name: ready_nodes
+    title: "ready_nodes"
+    expr: 'sum(kube_node_status_condition{condition="Ready", status="true"})'
+    unit: "count"
+    category: "node_general_info"
+    description: "Number of ready nodes"

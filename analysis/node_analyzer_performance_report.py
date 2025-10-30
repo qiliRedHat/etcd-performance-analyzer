@@ -52,11 +52,11 @@ class nodeReportAnalyzer:
             
             data = metrics_data.get('data', {})
             
-            # Analyze critical metrics (WAL fsync and backend commit)
-            analysis_results['critical_metrics_analysis'] = self._analyze_critical_metrics(data)
+            # # Analyze critical metrics (WAL fsync and backend commit)
+            # analysis_results['critical_metrics_analysis'] = self._analyze_critical_metrics(data)
             
-            # Analyze supporting metrics (CPU, memory, network, disk)
-            analysis_results['performance_summary'] = self._analyze_supporting_metrics(data)
+            # # Analyze supporting metrics (CPU, memory, network, disk)
+            # analysis_results['performance_summary'] = self._analyze_supporting_metrics(data)
             
             # Analyze node usage if provided
             if node_usage_data and node_usage_data.get('status') == 'success':
@@ -904,41 +904,41 @@ class nodeReportAnalyzer:
         }
         
         try:
-            # Compare WAL fsync
-            wal_data = data.get('wal_fsync_data', [])
-            wal_p99_metrics = [m for m in wal_data if 'p99' in m.get('metric_name', '')]
+            # # Compare WAL fsync
+            # wal_data = data.get('wal_fsync_data', [])
+            # wal_p99_metrics = [m for m in wal_data if 'p99' in m.get('metric_name', '')]
             
-            if wal_p99_metrics:
-                avg_wal_latency = sum(m.get('avg', 0) * 1000 for m in wal_p99_metrics) / len(wal_p99_metrics)
-                comparison['current_vs_baseline']['wal_fsync_p99_ms'] = {
-                    'current': round(avg_wal_latency, 3),
-                    'target': self.thresholds['wal_fsync_p99_ms'],
-                    'within_target': avg_wal_latency <= self.thresholds['wal_fsync_p99_ms']
-                }
+            # if wal_p99_metrics:
+            #     avg_wal_latency = sum(m.get('avg', 0) * 1000 for m in wal_p99_metrics) / len(wal_p99_metrics)
+            #     comparison['current_vs_baseline']['wal_fsync_p99_ms'] = {
+            #         'current': round(avg_wal_latency, 3),
+            #         'target': self.thresholds['wal_fsync_p99_ms'],
+            #         'within_target': avg_wal_latency <= self.thresholds['wal_fsync_p99_ms']
+            #     }
             
-            # Compare backend commit
-            backend_data = data.get('backend_commit_data', [])
-            backend_p99_metrics = [m for m in backend_data if 'p99' in m.get('metric_name', '')]
+            # # Compare backend commit
+            # backend_data = data.get('backend_commit_data', [])
+            # backend_p99_metrics = [m for m in backend_data if 'p99' in m.get('metric_name', '')]
             
-            if backend_p99_metrics:
-                avg_backend_latency = sum(m.get('avg', 0) * 1000 for m in backend_p99_metrics) / len(backend_p99_metrics)
-                comparison['current_vs_baseline']['backend_commit_p99_ms'] = {
-                    'current': round(avg_backend_latency, 3),
-                    'target': self.thresholds['backend_commit_p99_ms'],
-                    'within_target': avg_backend_latency <= self.thresholds['backend_commit_p99_ms']
-                }
+            # if backend_p99_metrics:
+            #     avg_backend_latency = sum(m.get('avg', 0) * 1000 for m in backend_p99_metrics) / len(backend_p99_metrics)
+            #     comparison['current_vs_baseline']['backend_commit_p99_ms'] = {
+            #         'current': round(avg_backend_latency, 3),
+            #         'target': self.thresholds['backend_commit_p99_ms'],
+            #         'within_target': avg_backend_latency <= self.thresholds['backend_commit_p99_ms']
+            #     }
             
-            # Compare CPU usage (etcd pods)
-            general_data = data.get('general_info_data', [])
-            cpu_metrics = [m for m in general_data if 'cpu_usage' in m.get('metric_name', '')]
+            # # Compare CPU usage (etcd pods)
+            # general_data = data.get('general_info_data', [])
+            # cpu_metrics = [m for m in general_data if 'cpu_usage' in m.get('metric_name', '')]
             
-            if cpu_metrics:
-                avg_cpu_usage = sum(m.get('avg', 0) for m in cpu_metrics) / len(cpu_metrics)
-                comparison['current_vs_baseline']['etcd_cpu_usage_percent'] = {
-                    'current': round(avg_cpu_usage, 2),
-                    'target': 70.0,
-                    'within_target': avg_cpu_usage <= 70.0
-                }
+            # if cpu_metrics:
+            #     avg_cpu_usage = sum(m.get('avg', 0) for m in cpu_metrics) / len(cpu_metrics)
+            #     comparison['current_vs_baseline']['etcd_cpu_usage_percent'] = {
+            #         'current': round(avg_cpu_usage, 2),
+            #         'target': 70.0,
+            #         'within_target': avg_cpu_usage <= 70.0
+            #     }
             
             # Compare node usage if available
             if node_usage_data and node_usage_data.get('status') == 'success':
@@ -1035,28 +1035,28 @@ class nodeReportAnalyzer:
         recommendations = []
         
         try:
-            # Check WAL fsync performance
-            wal_analysis = critical_analysis.get('wal_fsync_analysis', {})
-            if wal_analysis.get('health_status') in ['critical', 'warning']:
-                recommendations.append({
-                    'category': 'disk_performance',
-                    'priority': 'high',
-                    'issue': 'High WAL fsync latency detected',
-                    'recommendation': 'Upgrade to high-performance NVMe SSDs with low latency',
-                    'rationale': 'WAL fsync latency directly impacts etcd write performance'
-                })
+            # # Check WAL fsync performance
+            # wal_analysis = critical_analysis.get('wal_fsync_analysis', {})
+            # if wal_analysis.get('health_status') in ['critical', 'warning']:
+            #     recommendations.append({
+            #         'category': 'disk_performance',
+            #         'priority': 'high',
+            #         'issue': 'High WAL fsync latency detected',
+            #         'recommendation': 'Upgrade to high-performance NVMe SSDs with low latency',
+            #         'rationale': 'WAL fsync latency directly impacts etcd write performance'
+            #     })
             
-            # Check network performance
-            network_analysis = performance_analysis.get('network_analysis', {})
-            peer_latency_health = network_analysis.get('peer_latency_analysis', {}).get('health_status')
-            if peer_latency_health in ['critical', 'warning']:
-                recommendations.append({
-                    'category': 'network_optimization',
-                    'priority': 'high',
-                    'issue': 'High peer-to-peer network latency',
-                    'recommendation': 'Optimize network topology and reduce network hops between etcd members',
-                    'rationale': 'High network latency affects cluster consensus and performance'
-                })
+            # # Check network performance
+            # network_analysis = performance_analysis.get('network_analysis', {})
+            # peer_latency_health = network_analysis.get('peer_latency_analysis', {}).get('health_status')
+            # if peer_latency_health in ['critical', 'warning']:
+            #     recommendations.append({
+            #         'category': 'network_optimization',
+            #         'priority': 'high',
+            #         'issue': 'High peer-to-peer network latency',
+            #         'recommendation': 'Optimize network topology and reduce network hops between etcd members',
+            #         'rationale': 'High network latency affects cluster consensus and performance'
+            #     })
             
             # Check node resource usage
             if node_usage_analysis:
@@ -1123,25 +1123,25 @@ class nodeReportAnalyzer:
         
         try:
             # Critical disk performance alerts
-            wal_health = critical_analysis.get('wal_fsync_analysis', {}).get('health_status')
-            if wal_health == 'critical':
-                alerts.append({
-                    'severity': 'critical',
-                    'category': 'disk_performance',
-                    'message': 'WAL fsync latency exceeds critical threshold (>10ms)',
-                    'impact': 'High write latency affecting cluster stability',
-                    'action_required': 'Immediate storage performance investigation required'
-                })
+            # wal_health = critical_analysis.get('wal_fsync_analysis', {}).get('health_status')
+            # if wal_health == 'critical':
+            #     alerts.append({
+            #         'severity': 'critical',
+            #         'category': 'disk_performance',
+            #         'message': 'WAL fsync latency exceeds critical threshold (>10ms)',
+            #         'impact': 'High write latency affecting cluster stability',
+            #         'action_required': 'Immediate storage performance investigation required'
+            #     })
             
-            backend_health = critical_analysis.get('backend_commit_analysis', {}).get('health_status')
-            if backend_health == 'critical':
-                alerts.append({
-                    'severity': 'critical',
-                    'category': 'disk_performance',
-                    'message': 'Backend commit latency exceeds critical threshold (>25ms)',
-                    'impact': 'Database write performance significantly degraded',
-                    'action_required': 'Immediate storage optimization required'
-                })
+            # backend_health = critical_analysis.get('backend_commit_analysis', {}).get('health_status')
+            # if backend_health == 'critical':
+            #     alerts.append({
+            #         'severity': 'critical',
+            #         'category': 'disk_performance',
+            #         'message': 'Backend commit latency exceeds critical threshold (>25ms)',
+            #         'impact': 'Database write performance significantly degraded',
+            #         'action_required': 'Immediate storage optimization required'
+            #     })
             
             # Node resource alerts
             if node_usage_analysis:
@@ -1160,27 +1160,27 @@ class nodeReportAnalyzer:
                             'action_required': 'Immediate resource scaling or workload redistribution required'
                         })
             
-            # CPU starvation alerts
-            cpu_health = performance_analysis.get('cpu_analysis', {}).get('health_status')
-            if cpu_health == 'critical':
-                alerts.append({
-                    'severity': 'critical',
-                    'category': 'resource_starvation',
-                    'message': 'Critical CPU utilization detected on etcd pods',
-                    'impact': 'Potential CPU starvation affecting etcd performance',
-                    'action_required': 'Increase CPU resources or reduce load immediately'
-                })
+            # # CPU starvation alerts
+            # cpu_health = performance_analysis.get('cpu_analysis', {}).get('health_status')
+            # if cpu_health == 'critical':
+            #     alerts.append({
+            #         'severity': 'critical',
+            #         'category': 'resource_starvation',
+            #         'message': 'Critical CPU utilization detected on etcd pods',
+            #         'impact': 'Potential CPU starvation affecting etcd performance',
+            #         'action_required': 'Increase CPU resources or reduce load immediately'
+            #     })
             
-            # Network performance alerts
-            network_health = performance_analysis.get('network_analysis', {}).get('health_status')
-            if network_health == 'critical':
-                alerts.append({
-                    'severity': 'warning',
-                    'category': 'network_performance',
-                    'message': 'Network performance issues detected',
-                    'impact': 'Cluster communication may be affected',
-                    'action_required': 'Investigate network connectivity and bandwidth'
-                })
+            # # Network performance alerts
+            # network_health = performance_analysis.get('network_analysis', {}).get('health_status')
+            # if network_health == 'critical':
+            #     alerts.append({
+            #         'severity': 'warning',
+            #         'category': 'network_performance',
+            #         'message': 'Network performance issues detected',
+            #         'impact': 'Cluster communication may be affected',
+            #         'action_required': 'Investigate network connectivity and bandwidth'
+            #     })
             
         except Exception as e:
             self.logger.error(f"Error generating alerts: {e}")
