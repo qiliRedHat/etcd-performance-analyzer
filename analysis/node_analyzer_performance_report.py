@@ -1562,37 +1562,37 @@ class nodeReportAnalyzer:
                 ""
             ])
             
-            # WAL fsync analysis
-            wal_analysis = critical_analysis.get('wal_fsync_analysis', {})
-            if wal_analysis:
-                cluster_summary = wal_analysis.get('cluster_summary', {})
-                health_status = wal_analysis.get('health_status', 'unknown')
+            # # WAL fsync analysis
+            # wal_analysis = critical_analysis.get('wal_fsync_analysis', {})
+            # if wal_analysis:
+            #     cluster_summary = wal_analysis.get('cluster_summary', {})
+            #     health_status = wal_analysis.get('health_status', 'unknown')
                 
-                report_lines.extend([
-                    "WAL Fsync Performance:",
-                    f"  Health Status: {health_status.upper()}",
-                    f"  Average Latency: {cluster_summary.get('avg_latency_ms', 'N/A')} ms",
-                    f"  Maximum Latency: {cluster_summary.get('max_latency_ms', 'N/A')} ms",
-                    f"  Threshold: {self.thresholds['wal_fsync_p99_ms']} ms",
-                    f"  Pods with Issues: {cluster_summary.get('pods_with_issues', 0)}/{cluster_summary.get('total_pods', 0)}",
-                    ""
-                ])
+            #     report_lines.extend([
+            #         "WAL Fsync Performance:",
+            #         f"  Health Status: {health_status.upper()}",
+            #         f"  Average Latency: {cluster_summary.get('avg_latency_ms', 'N/A')} ms",
+            #         f"  Maximum Latency: {cluster_summary.get('max_latency_ms', 'N/A')} ms",
+            #         f"  Threshold: {self.thresholds['wal_fsync_p99_ms']} ms",
+            #         f"  Pods with Issues: {cluster_summary.get('pods_with_issues', 0)}/{cluster_summary.get('total_pods', 0)}",
+            #         ""
+            #     ])
             
-            # Backend commit analysis
-            backend_analysis = critical_analysis.get('backend_commit_analysis', {})
-            if backend_analysis:
-                cluster_summary = backend_analysis.get('cluster_summary', {})
-                health_status = backend_analysis.get('health_status', 'unknown')
+            # # Backend commit analysis
+            # backend_analysis = critical_analysis.get('backend_commit_analysis', {})
+            # if backend_analysis:
+            #     cluster_summary = backend_analysis.get('cluster_summary', {})
+            #     health_status = backend_analysis.get('health_status', 'unknown')
                 
-                report_lines.extend([
-                    "Backend Commit Performance:",
-                    f"  Health Status: {health_status.upper()}",
-                    f"  Average Latency: {cluster_summary.get('avg_latency_ms', 'N/A')} ms",
-                    f"  Maximum Latency: {cluster_summary.get('max_latency_ms', 'N/A')} ms",
-                    f"  Threshold: {self.thresholds['backend_commit_p99_ms']} ms",
-                    f"  Pods with Issues: {cluster_summary.get('pods_with_issues', 0)}/{cluster_summary.get('total_pods', 0)}",
-                    ""
-                ])
+            #     report_lines.extend([
+            #         "Backend Commit Performance:",
+            #         f"  Health Status: {health_status.upper()}",
+            #         f"  Average Latency: {cluster_summary.get('avg_latency_ms', 'N/A')} ms",
+            #         f"  Maximum Latency: {cluster_summary.get('max_latency_ms', 'N/A')} ms",
+            #         f"  Threshold: {self.thresholds['backend_commit_p99_ms']} ms",
+            #         f"  Pods with Issues: {cluster_summary.get('pods_with_issues', 0)}/{cluster_summary.get('total_pods', 0)}",
+            #         ""
+            #     ])
             
             # Node Usage Analysis
             if node_usage_analysis:
@@ -1653,24 +1653,24 @@ class nodeReportAnalyzer:
             # Supporting metrics summary
             performance_summary = analysis_results.get('performance_summary', {})
             
-            # Network Analysis
-            network_analysis = performance_summary.get('network_analysis', {})
-            if network_analysis:
-                report_lines.extend([
-                    "NETWORK PERFORMANCE",
-                    "=" * 50,
-                    f"Overall Health: {network_analysis.get('health_status', 'unknown').upper()}",
-                ])
+            # # Network Analysis
+            # network_analysis = performance_summary.get('network_analysis', {})
+            # if network_analysis:
+            #     report_lines.extend([
+            #         "NETWORK PERFORMANCE",
+            #         "=" * 50,
+            #         f"Overall Health: {network_analysis.get('health_status', 'unknown').upper()}",
+            #     ])
                 
-                peer_latency = network_analysis.get('peer_latency_analysis', {})
-                if peer_latency.get('cluster_summary'):
-                    peer_summary = peer_latency['cluster_summary']
-                    report_lines.extend([
-                        f"Peer Latency: {peer_summary.get('avg_latency_ms', 'N/A')} ms avg, {peer_summary.get('max_latency_ms', 'N/A')} ms max",
-                        f"Pods with Latency Issues: {peer_summary.get('pods_with_issues', 0)}/{peer_summary.get('total_pods', 0)}"
-                    ])
+            #     peer_latency = network_analysis.get('peer_latency_analysis', {})
+            #     if peer_latency.get('cluster_summary'):
+            #         peer_summary = peer_latency['cluster_summary']
+            #         report_lines.extend([
+            #             f"Peer Latency: {peer_summary.get('avg_latency_ms', 'N/A')} ms avg, {peer_summary.get('max_latency_ms', 'N/A')} ms max",
+            #             f"Pods with Latency Issues: {peer_summary.get('pods_with_issues', 0)}/{peer_summary.get('total_pods', 0)}"
+            #         ])
                 
-                report_lines.append("")
+            #     report_lines.append("")
             
             # Detailed Metric Tables
             report_lines.extend([
