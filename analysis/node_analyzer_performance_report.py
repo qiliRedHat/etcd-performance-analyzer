@@ -59,6 +59,7 @@ class nodeReportAnalyzer:
             # analysis_results['performance_summary'] = self._analyze_supporting_metrics(data)
             
             # Analyze node usage if provided
+            node_usage_data = data.get('node_usage_data',{})
             if node_usage_data and node_usage_data.get('status') == 'success':
                 analysis_results['node_usage_analysis'] = self._analyze_node_usage(node_usage_data)
                 self.logger.info("Node usage analysis completed")
@@ -107,9 +108,9 @@ class nodeReportAnalyzer:
         }
         
         try:
-            usage_data = node_usage_data.get('data', {})
-            metrics = usage_data.get('metrics', {})
-            node_capacities = usage_data.get('node_capacities', {})
+            #usage_data = node_usage_data.get('data', {})
+            metrics = node_usage_data.get('metrics', {})
+            node_capacities = node_usage_data.get('node_capacities', {})
             
             # Analyze CPU usage
             cpu_usage = metrics.get('cpu_usage', {})
@@ -1490,7 +1491,7 @@ class nodeReportAnalyzer:
             # Header
             report_lines.extend([
                 "=" * 100,
-                "ETCD PERFORMANCE ANALYSIS REPORT",
+                "NODE PERFORMANCE ANALYSIS REPORT",
                 "=" * 100,
                 f"Test ID: {test_id}",
                 f"Analysis Duration: {duration}",
@@ -1507,13 +1508,14 @@ class nodeReportAnalyzer:
             ])
             
             # Critical metrics summary
-            critical_analysis = analysis_results.get('critical_metrics_analysis', {})
-            overall_disk_health = critical_analysis.get('overall_disk_health', 'unknown')
+            # critical_analysis = analysis_results.get('critical_metrics_analysis', {})
+            # overall_disk_health = critical_analysis.get('overall_disk_health', 'unknown')
             
-            report_lines.append(f"Overall Disk Performance Health: {overall_disk_health.upper()}")
+            # report_lines.append(f"Overall Disk Performance Health: {overall_disk_health.upper()}")
             
             # Node usage summary
             node_usage_analysis = analysis_results.get('node_usage_analysis', {})
+            
             if node_usage_analysis:
                 node_health = node_usage_analysis.get('health_status', 'unknown')
                 report_lines.append(f"Master Node Resource Health: {node_health.upper()}")
