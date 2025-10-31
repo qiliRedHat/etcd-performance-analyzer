@@ -106,34 +106,55 @@ class nodeReportAnalyzer:
             'health_status': 'unknown',
             'resource_issues': []
         }
-        
+
         try:
             #usage_data = node_usage_data.get('data', {})
-            metrics = node_usage_data.get('metrics', {})
-            node_capacities = node_usage_data.get('node_capacities', {})
+            #metrics = node_usage_data.get('metrics', {})
+            master_metrics = node_usage_data.get('node_groups', {}).get('master', {}).get('metrics', {})
+            worker_metrics = node_usage_data.get('node_groups', {}).get('master', {}).get('metrics', {})
+            master_node_capacities = node_usage_data.get('node_groups', {}).get('master', {}).get('node_capacities', {})
+            worker_node_capacities = node_usage_data.get('node_groups', {}).get('master', {}).get('node_capacities', {})
             
             # Analyze CPU usage
-            cpu_usage = metrics.get('cpu_usage', {})
-            if cpu_usage.get('status') == 'success':
-                analysis['cpu_analysis'] = self._analyze_node_cpu_usage(
-                    cpu_usage.get('nodes', {})
+            master_cpu_usage = master_metrics.get('cpu_usage', {})
+            if worker_cpu_usage.get('status') == 'success':
+                analysis['cpu_analysis']['master'] = self._analyze_node_cpu_usage(
+                    master_cpu_usage.get('nodes', {})
+                )
+            worker_cpu_usage = worker_metrics.get('cpu_usage', {})
+            if worker_cpu_usage.get('status') == 'success':
+                analysis['cpu_analysis']['worker'] = self._analyze_node_cpu_usage(
+                    worker_cpu_usage.get('nodes', {})
                 )
             
             # Analyze memory usage
-            memory_used = metrics.get('memory_used', {})
-            if memory_used.get('status') == 'success':
-                analysis['memory_analysis'] = self._analyze_node_memory_usage(
-                    memory_used.get('nodes', {}),
-                    node_capacities
+            master_memory_used = master_metrics.get('memory_used', {})
+            if master_memory_used.get('status') == 'success':
+                analysis['memory_analysis']['master'] = self._analyze_node_memory_usage(
+                    master_memory_used.get('nodes', {}),
+                    master_node_capacities
+                )
+            worker_memory_used = worker_metrics.get('memory_used', {})
+            if worker_memory_used.get('status') == 'success':
+                analysis['memory_analysis']['worker'] = self._analyze_node_memory_usage(
+                    worker_memory_used.get('nodes', {}),
+                    worker_node_capacities
                 )
             
             # Analyze cgroup usage
-            cgroup_cpu = metrics.get('cgroup_cpu_usage', {})
-            cgroup_rss = metrics.get('cgroup_rss_usage', {})
-            if cgroup_cpu.get('status') == 'success' or cgroup_rss.get('status') == 'success':
-                analysis['cgroup_analysis'] = self._analyze_cgroup_usage(
-                    cgroup_cpu.get('nodes', {}),
-                    cgroup_rss.get('nodes', {})
+            master_cgroup_cpu = master_metrics.get('cgroup_cpu_usage', {})
+            master_cgroup_rss = master_metrics.get('cgroup_rss_usage', {})
+            if master_cgroup_cpu.get('status') == 'success' or master_cgroup_rss.get('status') == 'success':
+                analysis['cgroup_analysis']['master'] = self._analyze_cgroup_usage(
+                    master_cgroup_cpu.get('nodes', {}),
+                    master_cgroup_rss.get('nodes', {})
+                )
+            worker_cgroup_cpu = worker_metrics.get('cgroup_cpu_usage', {})
+            worker_cgroup_rss = worker_metrics.get('cgroup_rss_usage', {})
+            if worker_cgroup_cpu.get('status') == 'success' or worker_cgroup_rss.get('status') == 'success':
+                analysis['cgroup_analysis']['worker'] = self._analyze_cgroup_usage(
+                    worker_cgroup_cpu.get('nodes', {}),
+                    worker_cgroup_rss.get('nodes', {})
                 )
             
             # Determine overall health
@@ -369,18 +390,26 @@ class nodeReportAnalyzer:
     def _determine_node_health(self, analysis: Dict[str, Any]) -> str:
         """Determine overall node health status"""
         try:
-            cpu_issues = len(analysis.get('cpu_analysis', {}).get('issues', []))
-            memory_issues = len(analysis.get('memory_analysis', {}).get('issues', []))
+            master_cpu_issues = len(analysis.get('master', {}).get('cpu_analysis', {}).get('issues', []))
+            master_memory_issues = len(analysis.get('master', {}).get('memory_analysis', {}).get('issues', []))
             
-            cpu_summary = analysis.get('cpu_analysis', {}).get('cluster_summary', {})
-            memory_summary = analysis.get('memory_analysis', {}).get('cluster_summary', {})
+            master_cpu_summary = analysis.get('master', {}).get('cpu_analysis', {}).get('cluster_summary', {})
+            master_memory_summary = analysis.get('master', {}).get('memory_analysis', {}).get('cluster_summary', {})
+
+            worker_cpu_issues = len(analysis.get('worker', {}).get('cpu_analysis', {}).get('issues', []))
+            worker_memory_issues = len(analysis.get('worker', {}).get('memory_analysis', {}).get('issues', []))
             
-            critical_cpu = cpu_summary.get('critical_usage_nodes', 0)
-            critical_memory = memory_summary.get('critical_usage_nodes', 0)
+            worker_cpu_summary = analysis.get('worker', {}).get('cpu_analysis', {}).get('cluster_summary', {})
+            worker_memory_summary = analysis.get('worker', {}).get('memory_analysis', {}).get('cluster_summary', {})
             
-            if critical_cpu > 0 or critical_memory > 0:
+            master_critical_cpu = master_cpu_summary.get('critical_usage_nodes', 0)
+            master_critical_memory = master_memory_summary.get('critical_usage_nodes', 0)
+            worker_critical_cpu = worker_cpu_summary.get('critical_usage_nodes', 0)
+            worker_critical_memory = worker_memory_summary.get('critical_usage_nodes', 0)
+            
+            if master_critical_cpu > 0 or master_critical_memory > 0 or worker_critical_cpu > 0 or worker_critical_memory >0 :
                 return 'critical'
-            elif cpu_issues > 0 or memory_issues > 0:
+            elif master_cpu_issues > 0 or master_memory_issues > 0 or worker_cpu_issues > 0 or worker_memory_issues > 0:
                 return 'warning'
             else:
                 return 'good'
@@ -395,20 +424,43 @@ class nodeReportAnalyzer:
         
         try:
             # CPU issues
-            cpu_issues = analysis.get('cpu_analysis', {}).get('issues', [])
+            cpu_issues = analysis.get('master', {}).get('cpu_analysis', {}).get('issues', [])
             for issue in cpu_issues:
                 issues.append({
                     'type': 'cpu',
+                    'node_group': 'master'
                     'node': issue['node'],
                     'severity': issue['severity'],
                     'description': f"Node {issue['node']} CPU utilization at {issue['avg_utilization']}% avg, {issue['max_utilization']}% max"
                 })
             
             # Memory issues
-            memory_issues = analysis.get('memory_analysis', {}).get('issues', [])
+            memory_issues = analysis.get('master', {}).get('memory_analysis', {}).get('issues', [])
             for issue in memory_issues:
                 issues.append({
                     'type': 'memory',
+                    'node_group': 'master'
+                    'node': issue['node'],
+                    'severity': issue['severity'],
+                    'description': f"Node {issue['node']} memory utilization at {issue['avg_utilization']}% avg, {issue['max_utilization']}% max"
+                })
+            # CPU issues
+            cpu_issues = analysis.get('worker', {}).get('cpu_analysis', {}).get('issues', [])
+            for issue in cpu_issues:
+                issues.append({
+                    'type': 'cpu',
+                    'node_group': 'worker'
+                    'node': issue['node'],
+                    'severity': issue['severity'],
+                    'description': f"Node {issue['node']} CPU utilization at {issue['avg_utilization']}% avg, {issue['max_utilization']}% max"
+                })
+            
+            # Memory issues
+            memory_issues = analysis.get('worker', {}).get('memory_analysis', {}).get('issues', [])
+            for issue in memory_issues:
+                issues.append({
+                    'type': 'memory',
+                    'node_group': 'worker'
                     'node': issue['node'],
                     'severity': issue['severity'],
                     'description': f"Node {issue['node']} memory utilization at {issue['avg_utilization']}% avg, {issue['max_utilization']}% max"
