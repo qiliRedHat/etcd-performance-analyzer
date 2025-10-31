@@ -449,7 +449,7 @@ class nodeReportAnalyzer:
             for issue in cpu_issues:
                 issues.append({
                     'type': 'cpu',
-                    'node_group': 'worker'
+                    'node_group': 'worker',
                     'node': issue['node'],
                     'severity': issue['severity'],
                     'description': f"Node {issue['node']} CPU utilization at {issue['avg_utilization']}% avg, {issue['max_utilization']}% max"
@@ -460,7 +460,7 @@ class nodeReportAnalyzer:
             for issue in memory_issues:
                 issues.append({
                     'type': 'memory',
-                    'node_group': 'worker'
+                    'node_group': 'worker',
                     'node': issue['node'],
                     'severity': issue['severity'],
                     'description': f"Node {issue['node']} memory utilization at {issue['avg_utilization']}% avg, {issue['max_utilization']}% max"
