@@ -430,15 +430,6 @@ class nodeAnalyzerMCPAgent:
             
             prompt = f"""You are an expert node performance analyst. Analyze the following data and provide root cause analysis.
 
-Failed Thresholds:
-{json.dumps(failed_thresholds, indent=2)}
-
-Script-based Analysis:
-{json.dumps(script_analysis, indent=2)}
-
-Cluster Overview:
-{json.dumps(context, indent=2)}
-
 Provide a JSON response with:
 1. primary_root_cause: {{cause, confidence_level (1-10), explanation}}
 2. secondary_factors: [list of contributing factors]
