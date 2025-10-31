@@ -173,13 +173,6 @@ class nodeMetricsCollector:
                     cgroup_rss = await self._collect_cgroup_rss_usage(prom, nodes, start_str, end_str)
 
                     return {
-                        'status': 'success',
-                        'timestamp': datetime.now(timezone.utc).isoformat(),
-                        'duration': duration,
-                        'time_range': {
-                            'start': start_str,
-                            'end': end_str
-                        },
                         'node_group': node_group,
                         'total_nodes': len(nodes),
                         'node_capacities': {node: {'memory': capacity} for node, capacity in node_capacities.items()},
@@ -202,7 +195,7 @@ class nodeMetricsCollector:
                 'timestamp': datetime.now(timezone.utc).isoformat(),
                 'duration': duration,
                 'time_range': {'start': start_str, 'end': end_str},
-                'node_usage_data': {
+                'node_groups': {
                     'master': master_metrics,
                     'worker': worker_metrics
                 }
