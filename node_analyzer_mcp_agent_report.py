@@ -338,14 +338,11 @@ class nodeAnalyzerMCPAgent:
             return state
             
         try:
-            #analysis_results = state["analysis_results"]
-            analysis_results = {}
+            analysis_results = state["analysis_results"]
             metrics_data = state["metrics_data"]
-            #script_analysis = state["script_analysis"]
-            script_analysis = {}
+            script_analysis = state["script_analysis"]
             
-            #failed_thresholds = self._identify_failed_thresholds(analysis_results)
-            failed_thresholds = {}
+            failed_thresholds = self._identify_failed_thresholds(analysis_results)
 
             #if failed_thresholds and script_analysis:
             if metrics_data:
