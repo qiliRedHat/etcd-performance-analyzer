@@ -1649,54 +1649,99 @@ class nodeReportAnalyzer:
             # Node Usage Analysis
             if node_usage_analysis:
                 report_lines.extend([
-                    "MASTER NODE RESOURCE USAGE",
+                    "NODE RESOURCE USAGE",
                     "=" * 50,
                     ""
                 ])
                 
                 # CPU Analysis
-                cpu_analysis = node_usage_analysis.get('cpu_analysis', {})
-                if cpu_analysis.get('cluster_summary'):
-                    cpu_summary = cpu_analysis['cluster_summary']
+                master_cpu_analysis = node_usage_analysis.get('cpu_analysis', {}).get('master', {})
+                if master_cpu_analysis.get('cluster_summary'):
+                    master_cpu_summary = master_cpu_analysis['cluster_summary']
                     report_lines.extend([
-                        "Node CPU Usage:",
-                        f"  Average Utilization: {cpu_summary.get('avg_utilization_percent', 'N/A')}%",
-                        f"  Total Nodes: {cpu_summary.get('total_nodes', 0)}",
-                        f"  High Usage Nodes: {cpu_summary.get('high_usage_nodes', 0)}",
-                        f"  Critical Usage Nodes: {cpu_summary.get('critical_usage_nodes', 0)}",
+                        "Master Node CPU Usage:",
+                        f"  Average Utilization: {master_cpu_summary.get('avg_utilization_percent', 'N/A')}%",
+                        f"  Total Nodes: {master_cpu_summary.get('total_nodes', 0)}",
+                        f"  High Usage Nodes: {master_cpu_summary.get('high_usage_nodes', 0)}",
+                        f"  Critical Usage Nodes: {master_cpu_summary.get('critical_usage_nodes', 0)}",
+                        ""
+                    ])
+
+                worker_cpu_analysis = node_usage_analysis.get('cpu_analysis', {}).get('worker', {})
+                if worker_cpu_analysis.get('cluster_summary'):
+                    worker_cpu_summary = worker_cpu_analysis['cluster_summary']
+                    report_lines.extend([
+                        "Worker Node CPU Usage:",
+                        f"  Average Utilization: {worker_cpu_summary.get('avg_utilization_percent', 'N/A')}%",
+                        f"  Total Nodes: {worker_cpu_summary.get('total_nodes', 0)}",
+                        f"  High Usage Nodes: {worker_cpu_summary.get('high_usage_nodes', 0)}",
+                        f"  Critical Usage Nodes: {worker_cpu_summary.get('critical_usage_nodes', 0)}",
                         ""
                     ])
                 
                 # Memory Analysis
-                memory_analysis = node_usage_analysis.get('memory_analysis', {})
-                if memory_analysis.get('cluster_summary'):
-                    memory_summary = memory_analysis['cluster_summary']
+                master_memory_analysis = node_usage_analysis.get('memory_analysis', {}).get('master', {})
+                if master_memory_analysis.get('cluster_summary'):
+                    master_memory_summary = master_memory_analysis['cluster_summary']
                     report_lines.extend([
-                        "Node Memory Usage:",
-                        f"  Average Utilization: {memory_summary.get('avg_utilization_percent', 'N/A')}%",
-                        f"  Total Nodes: {memory_summary.get('total_nodes', 0)}",
-                        f"  High Usage Nodes: {memory_summary.get('high_usage_nodes', 0)}",
-                        f"  Critical Usage Nodes: {memory_summary.get('critical_usage_nodes', 0)}",
+                        "Master Node Memory Usage:",
+                        f"  Average Utilization: {master_memory_summary.get('avg_utilization_percent', 'N/A')}%",
+                        f"  Total Nodes: {master_memory_summary.get('total_nodes', 0)}",
+                        f"  High Usage Nodes: {master_memory_summary.get('high_usage_nodes', 0)}",
+                        f"  Critical Usage Nodes: {master_memory_summary.get('critical_usage_nodes', 0)}",
+                        ""
+                    ])
+
+                worker_memory_analysis = node_usage_analysis.get('memory_analysis', {}).get('worker', {})
+                if worker_memory_analysis.get('cluster_summary'):
+                    worker_memory_summary = worker_memory_analysis['cluster_summary']
+                    report_lines.extend([
+                        "Worker Node Memory Usage:",
+                        f"  Average Utilization: {worker_memory_summary.get('avg_utilization_percent', 'N/A')}%",
+                        f"  Total Nodes: {worker_memory_summary.get('total_nodes', 0)}",
+                        f"  High Usage Nodes: {worker_memory_summary.get('high_usage_nodes', 0)}",
+                        f"  Critical Usage Nodes: {worker_memory_summary.get('critical_usage_nodes', 0)}",
                         ""
                     ])
                 
                 # Cgroup Analysis
-                cgroup_analysis = node_usage_analysis.get('cgroup_analysis', {})
-                if cgroup_analysis.get('top_consumers'):
-                    top_cpu = cgroup_analysis['top_consumers'].get('cpu', [])[:3]
-                    top_memory = cgroup_analysis['top_consumers'].get('memory', [])[:3]
+                master_cgroup_analysis = node_usage_analysis.get('cgroup_analysis', {}).get('master', {})
+                if master_cgroup_analysis.get('top_consumers'):
+                    master_top_cpu = master_cgroup_analysis['top_consumers'].get('cpu', [])[:3]
+                    master_top_memory = cmaster_group_analysis['top_consumers'].get('memory', [])[:3]
                     
-                    if top_cpu:
-                        report_lines.extend(["Top CPU Consuming Cgroups:"])
-                        for consumer in top_cpu:
+                    if master_top_cpu:
+                        report_lines.extend(["Master nodes top CPU Consuming Cgroups:"])
+                        for consumer in master_top_cpu:
                             report_lines.append(
                                 f"  - {consumer['cgroup']} on {consumer['node']}: {consumer['avg_percent']:.2f}%"
                             )
                         report_lines.append("")
                     
-                    if top_memory:
-                        report_lines.extend(["Top Memory Consuming Cgroups:"])
-                        for consumer in top_memory:
+                    if master_top_memory:
+                        report_lines.extend(["Master nodes top Memory Consuming Cgroups:"])
+                        for consumer in master_top_memory:
+                            report_lines.append(
+                                f"  - {consumer['cgroup']} on {consumer['node']}: {consumer['avg_gb']:.2f} GB"
+                            )
+                        report_lines.append("")
+
+                worker_cgroup_analysis = node_usage_analysis.get('cgroup_analysis', {}).get('worker', {})
+                if worker_cgroup_analysis.get('top_consumers'):
+                    worker_top_cpu = worker_cgroup_analysis['top_consumers'].get('cpu', [])[:3]
+                    worker_top_memory = worker_cgroup_analysis['top_consumers'].get('memory', [])[:3]
+                    
+                    if worker_top_cpu:
+                        report_lines.extend(["Worker nodes top CPU Consuming Cgroups:"])
+                        for consumer in worker_top_cpu:
+                            report_lines.append(
+                                f"  - {consumer['cgroup']} on {consumer['node']}: {consumer['avg_percent']:.2f}%"
+                            )
+                        report_lines.append("")
+                    
+                    if worker_top_memory:
+                        report_lines.extend(["Worker nodes top Memory Consuming Cgroups:"])
+                        for consumer in worker_top_memory:
                             report_lines.append(
                                 f"  - {consumer['cgroup']} on {consumer['node']}: {consumer['avg_gb']:.2f} GB"
                             )
