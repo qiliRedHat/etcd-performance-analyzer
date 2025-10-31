@@ -1282,9 +1282,9 @@ class nodeReportAnalyzer:
             
             # Node usage tables
             if node_usage_data and node_usage_data.get('status') == 'success':
-                usage_data = node_usage_data.get('data', {})
-                master_metrics = usage_data.get('node_groups', {}).get('master', {}).get('metrics', {})
-                worker_metrics = usage_data.get('node_groups', {}).get('worker', {}).get('metrics', {})
+                #usage_data = node_usage_data.get('data', {})
+                master_metrics = node_usage_data.get('node_groups', {}).get('master', {}).get('metrics', {})
+                worker_metrics = node_usage_data.get('node_groups', {}).get('worker', {}).get('metrics', {})
                 
                 # Node CPU table
                 master_cpu_usage = master_metrics.get('cpu_usage', {})
