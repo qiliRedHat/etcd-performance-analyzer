@@ -117,21 +117,24 @@ class nodeMetricsCollector:
             return {}
         
     async def collect_all_metrics(self, duration: str = "1h") -> Dict[str, Any]:
-        """Collect all node usage metrics for master nodes"""
+        """Collect all node usage metrics for master and worker nodes"""
         try:
             self.logger.info("Starting node usage metrics collection")
-            
-            # Get master nodes
+
+            # Get master and worker nodes
             master_nodes = await self.utility.get_master_nodes()
-            if not master_nodes:
+            worker_nodes = await self.utility.get_worker_nodes()
+
+            if not master_nodes and not worker_nodes:
                 return {
                     'status': 'error',
-                    'error': 'No master nodes found',
+                    'error': 'No master or worker nodes found',
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
-            
+
             self.logger.info(f"Found {len(master_nodes)} master nodes: {master_nodes}")
-            
+            self.logger.info(f"Found {len(worker_nodes)} worker nodes: {worker_nodes}")
+
             # Calculate time range
             prom_config = self._build_prometheus_config()
             if not prom_config.get('url'):
@@ -141,52 +144,70 @@ class nodeMetricsCollector:
                     'hint': "Provide prometheus_config['url'] or set PROMETHEUS_URL env var",
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
-            
+
             async with PrometheusBaseQuery(prom_config) as prom:
                 # Get time range
                 start_time, end_time = prom._get_time_range(duration)
                 start_str = prom._format_timestamp(start_time)
                 end_str = prom._format_timestamp(end_time)
-                
+
                 self.logger.info(f"Querying metrics from {start_str} to {end_str}")
-                
-                # First, collect node memory capacities
-                node_capacities = await self._collect_node_memory_capacity(prom, master_nodes)
-                
-                # Collect metrics using range queries
-                cpu_usage = await self._collect_node_cpu_usage(prom, master_nodes, start_str, end_str)
-                memory_used = await self._collect_node_memory_used(
-                    prom, master_nodes, start_str, end_str, node_capacities=node_capacities
-                )
-                memory_cache = await self._collect_node_memory_cache_buffer(
-                    prom, master_nodes, start_str, end_str, node_capacities=node_capacities
-                )
-                cgroup_cpu = await self._collect_cgroup_cpu_usage(prom, master_nodes, start_str, end_str)
-                cgroup_rss = await self._collect_cgroup_rss_usage(prom, master_nodes, start_str, end_str)
-            
-            # Aggregate results
-            result = {
+
+                async def collect_for_group(node_group: str, nodes: list[str]):
+                    """Helper to collect metrics for a given node group"""
+                    if not nodes:
+                        return None
+
+                    # Collect memory capacity
+                    node_capacities = await self._collect_node_memory_capacity(prom, nodes)
+
+                    # Collect metrics
+                    cpu_usage = await self._collect_node_cpu_usage(prom, nodes, start_str, end_str)
+                    memory_used = await self._collect_node_memory_used(
+                        prom, nodes, start_str, end_str, node_capacities=node_capacities
+                    )
+                    memory_cache = await self._collect_node_memory_cache_buffer(
+                        prom, nodes, start_str, end_str, node_capacities=node_capacities
+                    )
+                    cgroup_cpu = await self._collect_cgroup_cpu_usage(prom, nodes, start_str, end_str)
+                    cgroup_rss = await self._collect_cgroup_rss_usage(prom, nodes, start_str, end_str)
+
+                    return {
+                        'status': 'success',
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'duration': duration,
+                        'time_range': {
+                            'start': start_str,
+                            'end': end_str
+                        },
+                        'node_group': node_group,
+                        'total_nodes': len(nodes),
+                        'node_capacities': {node: {'memory': capacity} for node, capacity in node_capacities.items()},
+                        'metrics': {
+                            'cpu_usage': cpu_usage,
+                            'memory_used': memory_used,
+                            'memory_cache_buffer': memory_cache,
+                            'cgroup_cpu_usage': cgroup_cpu,
+                            'cgroup_rss_usage': cgroup_rss
+                        }
+                    }
+
+                # Collect for both groups
+                master_metrics = await collect_for_group('master', master_nodes)
+                worker_metrics = await collect_for_group('worker', worker_nodes)
+
+            # Combine results
+            return {
                 'status': 'success',
                 'timestamp': datetime.now(timezone.utc).isoformat(),
                 'duration': duration,
-                'time_range': {
-                    'start': start_str,
-                    'end': end_str
-                },
-                'node_group': 'master',
-                'total_nodes': len(master_nodes),
-                'node_capacities': {node: {'memory': capacity} for node, capacity in node_capacities.items()},
-                'metrics': {
-                    'cpu_usage': cpu_usage,
-                    'memory_used': memory_used,
-                    'memory_cache_buffer': memory_cache,
-                    'cgroup_cpu_usage': cgroup_cpu,
-                    'cgroup_rss_usage': cgroup_rss
+                'time_range': {'start': start_str, 'end': end_str},
+                'node_usage_data': {
+                    'master': master_metrics,
+                    'worker': worker_metrics
                 }
             }
-            
-            return result
-            
+
         except Exception as e:
             self.logger.error(f"Error collecting node usage metrics: {e}", exc_info=True)
             return {
