@@ -1708,7 +1708,7 @@ class nodeReportAnalyzer:
                 master_cgroup_analysis = node_usage_analysis.get('cgroup_analysis', {}).get('master', {})
                 if master_cgroup_analysis.get('top_consumers'):
                     master_top_cpu = master_cgroup_analysis['top_consumers'].get('cpu', [])[:3]
-                    master_top_memory = cmaster_group_analysis['top_consumers'].get('memory', [])[:3]
+                    master_top_memory = master_cgroup_analysis['top_consumers'].get('memory', [])[:3]
                     
                     if master_top_cpu:
                         report_lines.extend(["Master nodes top CPU Consuming Cgroups:"])
