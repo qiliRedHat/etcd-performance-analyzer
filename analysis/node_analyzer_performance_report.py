@@ -1283,29 +1283,47 @@ class nodeReportAnalyzer:
             # Node usage tables
             if node_usage_data and node_usage_data.get('status') == 'success':
                 usage_data = node_usage_data.get('data', {})
-                metrics = usage_data.get('metrics', {})
+                master_metrics = usage_data.get('node_groups', {}).get('master', {}).get('metrics', {})
+                worker_metrics = usage_data.get('node_groups', {}).get('worker', {}).get('metrics', {})
                 
                 # Node CPU table
-                cpu_usage = metrics.get('cpu_usage', {})
-                if cpu_usage.get('status') == 'success':
-                    tables['node_cpu_usage'] = self._format_node_cpu_table(
-                        cpu_usage.get('nodes', {})
+                master_cpu_usage = master_metrics.get('cpu_usage', {})
+                if master_cpu_usage.get('status') == 'success':
+                    tables['master_node_cpu_usage'] = self._format_node_cpu_table(
+                        master_cpu_usage.get('nodes', {})
+                    )
+                worker_cpu_usage = worker_metrics.get('cpu_usage', {})
+                if worker_cpu_usage.get('status') == 'success':
+                    tables['worker_node_cpu_usage'] = self._format_node_cpu_table(
+                        worker_cpu_usage.get('nodes', {})
                     )
                 
                 # Node memory table
-                memory_used = metrics.get('memory_used', {})
-                if memory_used.get('status') == 'success':
-                    tables['node_memory_usage'] = self._format_node_memory_table(
-                        memory_used.get('nodes', {})
+                master_memory_used = master_metrics.get('memory_used', {})
+                if master_memory_used.get('status') == 'success':
+                    tables['master_node_memory_usage'] = self._format_node_memory_table(
+                        master_memory_used.get('nodes', {})
+                    )
+                worker_memory_used = worker_metrics.get('memory_used', {})
+                if worker_memory_used.get('status') == 'success':
+                    tables['worker_node_memory_usage'] = self._format_node_memory_table(
+                        worker_memory_used.get('nodes', {})
                     )
                 
                 # Top cgroup consumers
-                cgroup_cpu = metrics.get('cgroup_cpu_usage', {})
-                cgroup_rss = metrics.get('cgroup_rss_usage', {})
-                if cgroup_cpu.get('status') == 'success' or cgroup_rss.get('status') == 'success':
-                    tables['cgroup_usage'] = self._format_cgroup_table(
-                        cgroup_cpu.get('nodes', {}),
-                        cgroup_rss.get('nodes', {})
+                master_cgroup_cpu = master_metrics.get('cgroup_cpu_usage', {})
+                master_cgroup_rss = master_metrics.get('cgroup_rss_usage', {})
+                if master_cgroup_cpu.get('status') == 'success' or cgroup_rss.get('status') == 'success':
+                    tables['master_cgroup_usage'] = self._format_cgroup_table(
+                        master_cgroup_cpu.get('nodes', {}),
+                        master_cgroup_rss.get('nodes', {})
+                    )
+                worker_cgroup_cpu = worker_metrics.get('cgroup_cpu_usage', {})
+                worker_cgroup_rss = worker_metrics.get('cgroup_rss_usage', {})
+                if worker_cgroup_cpu.get('status') == 'success' or worker_cgroup_rss.get('status') == 'success':
+                    tables['worker_cgroup_usage'] = self._format_cgroup_table(
+                        worker_cgroup_cpu.get('nodes', {}),
+                        worker_cgroup_rss.get('nodes', {})
                     )
             
         except Exception as e:
