@@ -18,6 +18,7 @@ from tools.etcd_disk_backend_commit import DiskBackendCommitCollector
 from tools.etcd_disk_compact_defrag import CompactDefragCollector
 from analysis.node_analyzer_performance_utility import nodeAnalyzerUtility
 from tools.etcd_node_usage import nodeUsageCollector
+from tools.node_tools import nodeMetricsCollector
 
 class nodeDeepDriveAnalyzer:
     """Deep drive analyzer for cluster's node performance"""
@@ -40,6 +41,7 @@ class nodeDeepDriveAnalyzer:
         # Extract prometheus config from ocp_auth
         prometheus_config = self._get_prometheus_config_from_auth(ocp_auth)
         self.node_usage_collector = nodeUsageCollector(ocp_auth, prometheus_config)
+        self.node_metrics_collector = nodeMetricsCollector(ocp_auth, prometheus_config)
         
         self.test_id = self.utility.generate_test_id()
 
@@ -973,7 +975,7 @@ class nodeDeepDriveAnalyzer:
             self.logger.info("Collecting node usage metrics")
             
             # Call the node usage collector
-            result = await self.node_usage_collector.collect_all_metrics(self.duration)
+            result = await self.node_metrics_collector.collect_all_metrics(self.duration)
             
             if result.get('status') == 'success':
                 self.logger.info(f"Successfully collected node usage metrics for {result.get('total_nodes', 0)} nodes")
