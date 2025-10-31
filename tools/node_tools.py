@@ -122,7 +122,7 @@ class nodeMetricsCollector:
             self.logger.info("Starting node usage metrics collection")
 
             # Get master and worker nodes
-            master_nodes = await self.utility.get_master_nodes()
+            #master_nodes = await self.utility.get_master_nodes()
             worker_nodes = await self.utility.get_worker_nodes()
 
             if not master_nodes and not worker_nodes:

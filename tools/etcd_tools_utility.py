@@ -141,11 +141,11 @@ class mcpToolsUtility:
             self._master_nodes_cache = worker_nodes
             self._cache_timestamp = current_time
             
-            self.logger.info(f"Found {len(worker_nodes)} master nodes: {worker_nodes}")
+            self.logger.info(f"Found {len(worker_nodes)} worker nodes: {worker_nodes}")
             return worker_nodes
             
         except Exception as e:
-            self.logger.error(f"Error getting master nodes: {e}")
+            self.logger.error(f"Error getting worker nodes: {e}")
             return []
     
     async def get_nodes_by_group(self) -> Dict[str, List[str]]:
