@@ -117,7 +117,7 @@ class nodeReportAnalyzer:
             
             # Analyze CPU usage
             master_cpu_usage = master_metrics.get('cpu_usage', {})
-            if worker_cpu_usage.get('status') == 'success':
+            if master_cpu_usage.get('status') == 'success':
                 analysis['cpu_analysis']['master'] = self._analyze_node_cpu_usage(
                     master_cpu_usage.get('nodes', {})
                 )
