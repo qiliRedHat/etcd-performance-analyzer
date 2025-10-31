@@ -166,6 +166,7 @@ class nodeAnalyzerMCPAgent:
             stream_print("⏳ Fetching metrics...", end="")
             
             metrics_data = await self._call_mcp_tool("get_node_performance_deep_drive", params)
+            stream_print("{metrics_data}")
             
             if metrics_data and metrics_data.get("status") == "success":
                 state["metrics_data"] = metrics_data
