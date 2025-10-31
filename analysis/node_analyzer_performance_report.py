@@ -424,7 +424,7 @@ class nodeReportAnalyzer:
         
         try:
             # CPU issues
-            cpu_issues = analysis.get('master', {}).get('cpu_analysis', {}).get('issues', [])
+            cpu_issues = analysis.get('cpu_analysis', {}).get('master', {}).get('issues', [])
             for issue in cpu_issues:
                 issues.append({
                     'type': 'cpu',
@@ -435,7 +435,7 @@ class nodeReportAnalyzer:
                 })
             
             # Memory issues
-            memory_issues = analysis.get('master', {}).get('memory_analysis', {}).get('issues', [])
+            memory_issues = analysis.get('memory_analysis', {}).get('master', {}).get('issues', [])
             for issue in memory_issues:
                 issues.append({
                     'type': 'memory',
@@ -445,7 +445,7 @@ class nodeReportAnalyzer:
                     'description': f"Node {issue['node']} memory utilization at {issue['avg_utilization']}% avg, {issue['max_utilization']}% max"
                 })
             # CPU issues
-            cpu_issues = analysis.get('worker', {}).get('cpu_analysis', {}).get('issues', [])
+            cpu_issues = analysis.get('cpu_analysis', {}).get('worker', {}).get('issues', [])
             for issue in cpu_issues:
                 issues.append({
                     'type': 'cpu',
@@ -456,7 +456,7 @@ class nodeReportAnalyzer:
                 })
             
             # Memory issues
-            memory_issues = analysis.get('worker', {}).get('memory_analysis', {}).get('issues', [])
+            memory_issues = analysis.get('memory_analysis', {}).get('worker', {}).get('issues', [])
             for issue in memory_issues:
                 issues.append({
                     'type': 'memory',
